@@ -1,0 +1,36 @@
+# Research files (not for submission)
+docs/research_*.md
+docs/deep-research-report.md
+docs/AI_Research_Prompt.md
+
+# Environment
+.env
+*.env.local
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite3
+
+# Test / cache
+.pytest_cache/
+*.egg-info/
+
+# Claude Code
+.claude/
+
+# Server logs
+uvicorn.log
+nohup.out

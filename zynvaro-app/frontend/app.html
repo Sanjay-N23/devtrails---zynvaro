@@ -1,0 +1,2236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Zynvaro</title>
+<link rel="icon" href="/static/Zynvaro-bg-removed.png">
+<link rel="manifest" href="/static/manifest.json">
+<meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="/static/Zynvaro-bg-removed.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Zynvaro">
+<meta name="description" content="AI-powered parametric income protection for Q-Commerce gig workers. Zero paperwork, instant payouts when disruption strikes.">
+<meta property="og:title" content="Zynvaro — Income Shield for Gig Workers">
+<meta property="og:description" content="Parametric insurance: get paid instantly when weather, AQI, or platform outages disrupt your deliveries.">
+<meta property="og:type" content="website">
+<link rel="preload" as="image" href="/static/Zynvaro-bg-removed.png">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* ════════════════════════════════════════════════
+   ZYNVARO — MOBILE-FIRST DARK UI
+   Typographic system: Inter neo-grotesque, 6-level hierarchy
+   ════════════════════════════════════════════════ */
+
+:root {
+  --bg:           #000000;
+  --bg2:          #0d0d0d;
+  --card:         #111111;
+  --card2:        #1a1a1a;
+  --card3:        #252525;
+  --border:       rgba(255,255,255,0.07);
+  --text:         #ffffff;
+  --muted:        #888888;
+  --muted2:       #666666;
+  --orange:       #FF6B35;
+  --orange-d:     rgba(255,107,53,0.15);
+  --green:        #00C853;
+  --green-d:      rgba(0,200,83,0.15);
+  --blue:         #3B82F6;
+  --blue-d:       rgba(59,130,246,0.15);
+  --purple:       #8B5CF6;
+  --purple-d:     rgba(139,92,246,0.15);
+  --red:          #EF4444;
+  --red-d:        rgba(239,68,68,0.15);
+  --yellow:       #F59E0B;
+  --yellow-d:     rgba(245,158,11,0.15);
+  --fab:          #FF6B35;
+  --fab-glow:     rgba(255,107,53,0.45);
+  --r:            16px;
+  --r-sm:         12px;
+  --r-lg:         24px;
+  --r-pill:       50px;
+  --font:         'Inter', -apple-system, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  --header-h:     62px;
+  --nav-h:        74px;
+}
+
+*, *::before, *::after {
+  margin: 0; padding: 0; box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'kern' 1;
+  text-rendering: optimizeLegibility;
+}
+
+/* Tabular (monospaced) figures — critical for vertically-aligned numbers in lists */
+.hero-amount, .stat-cell .val, .admin-stat .val, .gauge-value,
+.tier-price, .list-val, .hero-days-num, .breakdown-row span,
+.wa-payout-highlight, #cs-total, #cs-approved, #cs-payout, #cs-score {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 2px; height: 2px; }
+::-webkit-scrollbar-thumb { background: var(--card3); border-radius: 4px; }
+
+/* ── UTILS ── */
+.hidden { display: none !important; }
+.flex { display: flex; }
+.gap-2 { gap: 8px; } .gap-3 { gap: 12px; } .gap-4 { gap: 16px; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.text-center { text-align: center; }
+.text-muted { color: var(--muted); }
+/* Level 4 */
+.text-sm { font-size: 13px; font-weight: 400; line-height: 1.5; }
+/* Level 6 */
+.text-xs { font-size: 11px; font-weight: 400; }
+.text-orange { color: var(--orange); }
+.text-green { color: var(--green); }
+.text-blue { color: var(--blue); }
+.text-red { color: var(--red); }
+.text-yellow { color: var(--yellow); }
+.text-purple { color: var(--purple); }
+.fw-600 { font-weight: 600; }
+.fw-700 { font-weight: 700; }
+.mt-1{margin-top:4px} .mt-2{margin-top:8px} .mt-3{margin-top:12px} .mt-4{margin-top:16px} .mt-6{margin-top:24px}
+.mb-1{margin-bottom:4px} .mb-2{margin-bottom:8px} .mb-3{margin-bottom:12px} .mb-4{margin-bottom:16px}
+.w-full { width: 100%; }
+
+/* ── CARD ── */
+.card {
+  background: var(--card);
+  border-radius: var(--r);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+/* ── BUTTONS — Level 5: Action text, 15px, Semi-Bold ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 22px; border-radius: var(--r-pill); font-size: 15px; font-weight: 600;
+  border: none; cursor: pointer; transition: transform .12s, background .12s;
+  font-family: var(--font); text-decoration: none; letter-spacing: -0.1px;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary  { background: var(--orange); color: #fff; }
+.btn-primary:active { background: #e55a27; }
+.btn-white    { background: #fff; color: #000; }
+.btn-white:active { background: #e5e5e5; }
+.btn-ghost    { background: var(--card2); color: var(--text); }
+.btn-ghost:active { background: var(--card3); }
+.btn-danger   { background: var(--red); color: #fff; }
+.btn-success  { background: var(--green); color: #000; }
+.btn-full  { width: 100%; }
+.btn-sm    { padding: 9px 16px; font-size: 13px; }
+.btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+/* ── FORM — Level 6: Label 11px, input Level 3 15px ── */
+.form-group { margin-bottom: 14px; }
+.form-label {
+  display: block; font-size: 11px; color: var(--muted);
+  margin-bottom: 7px; font-weight: 500; letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.form-input, .form-select {
+  width: 100%; padding: 14px 16px; background: var(--card2);
+  border: none; border-radius: var(--r-sm); color: var(--text);
+  font-size: 15px; font-family: var(--font); outline: none;
+  transition: background .15s; font-weight: 400;
+}
+.form-input:focus, .form-select:focus { background: var(--card3); }
+.form-input::placeholder { color: var(--muted2); }
+.form-select option { background: var(--card2); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* ════════════════════════════════════════════════
+   AUTH
+   ════════════════════════════════════════════════ */
+#auth-wrapper {
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg); padding: 28px 20px;
+}
+.auth-inner { width: 100%; max-width: 420px; }
+.auth-logo { text-align: center; margin-bottom: 36px; }
+/* Level 1-ish: auth logo title */
+.auth-logo img { height: 56px; margin-bottom: 14px; filter: drop-shadow(0 0 20px rgba(255,107,53,0.35)); }
+.auth-logo h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.8px; }
+/* Level 4: auth subtitle */
+.auth-logo p { color: var(--muted); font-size: 13px; margin-top: 6px; font-weight: 400; line-height: 1.5; }
+.auth-tabs {
+  display: flex; background: var(--card); border-radius: var(--r-pill);
+  padding: 4px; margin-bottom: 24px;
+}
+/* Level 5: action/tab text — 14px Semi-Bold */
+.auth-tab {
+  flex: 1; padding: 11px; border-radius: var(--r-pill); border: none;
+  background: transparent; color: var(--muted); font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all .2s; font-family: var(--font); letter-spacing: -0.1px;
+}
+.auth-tab.active { background: var(--card3); color: var(--text); }
+.auth-demo-hint {
+  text-align: center; margin-top: 16px;
+  font-size: 12px; color: var(--muted);
+}
+.auth-demo-hint b { color: var(--orange); }
+
+/* ════════════════════════════════════════════════
+   APP HEADER
+   ════════════════════════════════════════════════ */
+#app-header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  height: var(--header-h);
+  background: rgba(0,0,0,0.92); backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+}
+.header-user { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+/* Level 3: worker name in header */
+.header-user-name { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
+/* Level 6: city·platform under name */
+.header-user-city { font-size: 11px; color: var(--muted); font-weight: 400; }
+.header-chevron { color: var(--muted); font-size: 11px; margin-left: 2px; }
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.header-icon-btn {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--card2); border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; transition: background .15s;
+}
+.header-icon-btn:active { background: var(--card3); }
+#nav-avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--orange); display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 15px; color: #fff;
+  border: none; cursor: pointer; font-family: var(--font);
+}
+
+/* ════════════════════════════════════════════════
+   BOTTOM NAV
+   ════════════════════════════════════════════════ */
+#bottom-nav {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+  height: var(--nav-h);
+  background: rgba(0,0,0,0.96); backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+/* Level 6 / 5: Nav item label — 10px Medium (microcopy in nav) */
+.bottom-nav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 4px; padding: 8px 0;
+  border: none; background: transparent; color: var(--muted);
+  font-size: 10px; font-weight: 500; cursor: pointer;
+  transition: color .15s; font-family: var(--font); letter-spacing: 0.1px;
+}
+.bottom-nav-item .nav-icon { font-size: 20px; line-height: 1; }
+.bottom-nav-item.active { color: var(--text); font-weight: 600; }
+.bottom-nav-fab {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 4px; padding: 8px 0;
+  border: none; background: transparent; cursor: pointer;
+  font-size: 10px; color: var(--muted); font-family: var(--font);
+}
+.fab-circle {
+  width: 52px; height: 52px; border-radius: 50%; background: var(--fab);
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+  box-shadow: 0 4px 24px var(--fab-glow); margin-top: -18px;
+  transition: transform .15s, box-shadow .15s;
+}
+.bottom-nav-fab:active .fab-circle { transform: scale(0.9); box-shadow: 0 2px 12px var(--fab-glow); }
+.bottom-nav-fab.active { color: var(--text); }
+
+/* ════════════════════════════════════════════════
+   PAGES
+   ════════════════════════════════════════════════ */
+#app-wrapper { position: fixed; inset: 0; overflow: hidden; }
+.page {
+  display: none;
+  padding: calc(var(--header-h) + 16px) 16px calc(var(--nav-h) + env(safe-area-inset-bottom, 20px) + 24px);
+  position: absolute; inset: 0;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.page.active { display: block; }
+/* Level 2: Screen Headers 20px Bold */
+.page-title { font-size: 20px; font-weight: 700; letter-spacing: -0.4px; margin-bottom: 4px; }
+/* Level 4: Subtitle / metadata 13px Regular mid-gray */
+.page-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 20px; font-weight: 400; line-height: 1.5; }
+
+/* ── SECTION HEADER — Level 2 lower-bound 18px Semi-Bold ── */
+.section-hd {
+  font-size: 17px; font-weight: 600; letter-spacing: -0.3px;
+  margin-bottom: 12px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+/* ════════════════════════════════════════════════
+   HERO CARD (Dashboard)
+   ════════════════════════════════════════════════ */
+.hero-card {
+  background: linear-gradient(140deg, #1a1535 0%, #0f1e3d 55%, #0d2a2a 100%);
+  border-radius: var(--r-lg); padding: 24px; margin-bottom: 14px;
+  position: relative; overflow: hidden;
+}
+.hero-card::before {
+  content: ''; position: absolute; top: -40px; right: -30px;
+  width: 150px; height: 150px; border-radius: 50%;
+  background: rgba(255,107,53,0.12); filter: blur(40px); pointer-events: none;
+}
+.hero-card::after {
+  content: ''; position: absolute; bottom: -20px; left: 40px;
+  width: 100px; height: 100px; border-radius: 50%;
+  background: rgba(255,107,53,0.08); filter: blur(30px); pointer-events: none;
+}
+/* Level 6: Overline label */
+.hero-label {
+  font-size: 11px; color: #aaaaaa; margin-bottom: 10px;
+  letter-spacing: 0.7px; text-transform: uppercase; font-weight: 500;
+  text-align: center;
+}
+/* Level 1: Display/Hero — 42px Heavy, centered */
+.hero-amount {
+  font-size: 42px; font-weight: 800; letter-spacing: -2px;
+  margin-bottom: 4px; position: relative; z-index:1;
+  text-align: center; line-height: 1.05;
+}
+/* Level 4: Metadata sub */
+.hero-sub {
+  font-size: 13px; color: #aaaaaa; margin-bottom: 16px;
+  text-align: center; font-weight: 400;
+}
+.hero-status-row {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-bottom: 20px; position: relative; z-index:1;
+}
+/* Level 6: Badge microcopy */
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: var(--r-pill); font-size: 11px; font-weight: 600;
+}
+.hero-badge-active { background: rgba(0,200,83,0.2); color: var(--green); }
+.hero-badge-none   { background: rgba(239,68,68,0.2); color: var(--red); }
+.hero-premium-text { font-size: 13px; color: rgba(255,255,255,0.5); }
+.hero-cta {
+  width: 100%; padding: 15px; border-radius: var(--r-pill);
+  background: #fff; color: #000; border: none; font-size: 15px; font-weight: 700;
+  cursor: pointer; font-family: var(--font); position: relative; z-index:1;
+  transition: transform .12s, background .12s;
+}
+.hero-cta:active { transform: scale(0.98); background: #e5e5e5; }
+
+/* ── QUICK ACTIONS ── */
+.quick-actions {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px;
+}
+.qa-btn {
+  background: var(--card); border-radius: var(--r-sm); padding: 14px 6px 12px;
+  border: none; cursor: pointer; display: flex; flex-direction: column;
+  align-items: center; gap: 7px; transition: background .12s; font-family: var(--font);
+}
+.qa-btn:active { background: var(--card2); }
+/* Level 5: icon size + Level 6 label below */
+.qa-icon { font-size: 22px; line-height: 1; }
+.qa-label { font-size: 11px; color: var(--muted); font-weight: 500; letter-spacing: 0.1px; text-align: center; }
+.qa-btn.active .qa-label { color: var(--text); font-weight: 600; }
+
+/* ── STAT ROW ── */
+.stat-row {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px;
+}
+.stat-cell {
+  background: var(--card); border-radius: var(--r-sm); padding: 14px;
+}
+/* Level 2 upper-bound: stat value */
+.stat-cell .val { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 3px; font-variant-numeric: tabular-nums; }
+/* Level 6: stat label */
+.stat-cell .lbl { font-size: 11px; color: var(--muted); font-weight: 400; letter-spacing: 0.2px; }
+
+/* ── LIST ITEMS ── */
+.list-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 0; border-bottom: 1px solid var(--border);
+}
+.list-item:last-child { border-bottom: none; }
+.list-avatar {
+  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; background: var(--card2);
+}
+.list-body { flex: 1; min-width: 0; }
+/* Level 3: Primary list anchor — 15px Semi-Bold white */
+.list-title { font-size: 15px; font-weight: 600; margin-bottom: 2px; letter-spacing: -0.2px; color: var(--text); line-height: 1.3; }
+/* Level 4: Secondary metadata — 13px Regular mid-gray; tight leading keeps pair as visual unit */
+.list-sub { font-size: 13px; color: var(--muted); font-weight: 400; line-height: 1.3; }
+/* Right column — right-aligned for vertical digit scanning */
+.list-right { text-align: right; flex-shrink: 0; }
+/* Level 3: right-side value */
+.list-val { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Level 6: right-side sublabel */
+.list-val-sub { font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 400; }
+
+/* ── TRIGGER ITEMS ── */
+.trigger-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 13px 0; border-bottom: 1px solid var(--border);
+}
+.trigger-item:last-child { border-bottom: none; }
+.trigger-icon-wrap {
+  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; background: var(--card2);
+}
+.trigger-icon { font-size: 22px; flex-shrink: 0; }
+/* Level 6: severity badge — 10px Medium uppercase */
+.trigger-badge {
+  display: inline-block; padding: 2px 8px; border-radius: var(--r-pill);
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.sev-high     { background: var(--red-d);    color: var(--red); }
+.sev-extreme  { background: var(--purple-d); color: var(--purple); }
+.sev-moderate { background: var(--yellow-d); color: var(--yellow); }
+
+/* ── TIER CARDS ── */
+.tier-card {
+  background: var(--card); border-radius: var(--r);
+  padding: 20px; margin-bottom: 12px;
+  cursor: pointer; transition: transform .12s;
+  border: 2px solid transparent; position: relative;
+}
+.tier-card:active { transform: scale(0.99); }
+.tier-card.selected   { border-color: var(--orange); }
+.tier-card.recommended { border-color: var(--blue); }
+/* Level 6: badge */
+.tier-badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+  border-radius: var(--r-pill); background: var(--blue-d); color: var(--blue);
+  font-size: 11px; font-weight: 600; margin-bottom: 10px; letter-spacing: 0.1px;
+}
+/* Level 3: tier name */
+.tier-name  { font-size: 16px; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.2px; }
+/* Level 1 sub: price — 32px Heavy tabular */
+.tier-price { font-size: 32px; font-weight: 800; letter-spacing: -1px; color: var(--orange); font-variant-numeric: tabular-nums; }
+/* Level 4: price unit */
+.tier-price span { font-size: 13px; color: var(--muted); font-weight: 400; letter-spacing: 0; }
+.tier-features { list-style: none; margin-top: 14px; }
+/* Level 4: feature list items */
+.tier-features li { font-size: 13px; padding: 5px 0; color: var(--muted); display: flex; align-items: center; gap: 8px; font-weight: 400; line-height: 1.4; }
+/* Level 3 override: included features in white */
+.tier-features li.yes { color: var(--text); font-weight: 500; }
+.tier-features li.no::before  { content: "╳"; color: var(--muted2); font-size: 11px; }
+.tier-features li.yes::before { content: "✓"; color: var(--green); font-size: 13px; }
+
+/* ── PREMIUM BREAKDOWN — Level 3 label, Level 3 value right-aligned ── */
+.breakdown-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 11px 0; border-bottom: 1px solid var(--border);
+  font-size: 14px; font-weight: 400; color: var(--muted);
+}
+.breakdown-row span:first-child { color: var(--text); font-weight: 500; font-size: 14px; }
+.breakdown-row span:last-child  { font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
+.breakdown-row:last-child { border-bottom: none; font-weight: 700; font-size: 15px; }
+.breakdown-pos { color: var(--red); }
+.breakdown-neg { color: var(--green); }
+
+/* ── CLAIM CARDS ── */
+.claim-card {
+  background: var(--card); border-radius: var(--r); padding: 16px; margin-bottom: 10px;
+}
+/* Level 6: status badge — 11px Medium with semantic color override */
+.claim-status-badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+  border-radius: var(--r-pill); font-size: 11px; font-weight: 600; letter-spacing: 0.2px;
+}
+.status-auto-approved { background: var(--green-d);  color: var(--green); }
+.status-paid          { background: var(--blue-d);   color: var(--blue); }
+.status-pending       { background: var(--yellow-d); color: var(--yellow); }
+.status-manual        { background: var(--red-d);    color: var(--red); }
+.status-rejected      { background: rgba(100,100,100,.15); color: var(--muted); }
+
+/* ── SCORE BAR ── */
+.score-bar  { height: 5px; background: var(--card2); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.score-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+
+/* ── RISK CHIP ── */
+.risk-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: var(--r-pill); font-size: 12px; font-weight: 600;
+}
+.risk-low    { background: var(--green-d);  color: var(--green); }
+.risk-medium { background: var(--yellow-d); color: var(--yellow); }
+.risk-high   { background: var(--red-d);    color: var(--red); }
+
+/* ── ADMIN ── */
+.admin-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+.admin-stat { background: var(--card); border-radius: var(--r-sm); padding: 14px; }
+/* Level 2: admin metric value */
+.admin-stat .val { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 3px; font-variant-numeric: tabular-nums; }
+/* Level 6: admin metric label */
+.admin-stat .lbl { font-size: 11px; color: var(--muted); font-weight: 400; }
+/* Level 1: Loss ratio gauge — 44px Heavy centered */
+.gauge-wrap { text-align: center; padding: 16px 0; }
+.gauge-value { font-size: 44px; font-weight: 800; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
+/* Level 4: gauge sublabel */
+.gauge-label { font-size: 13px; color: var(--muted); margin-top: 4px; font-weight: 400; }
+
+/* ── WORKER MOBILE LIST ── */
+.worker-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.worker-row:last-child { border-bottom: none; }
+.worker-avatar {
+  width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px;
+}
+
+/* ── TOAST ── */
+#toast-container {
+  position: fixed; top: calc(var(--header-h) + 8px); right: 12px; left: 12px;
+  z-index: 999; display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+}
+/* Level 4: toast — 13px, readable but not dominant */
+.toast {
+  padding: 12px 16px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500;
+  color: #fff; animation: slideIn .3s ease; display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.5); pointer-events: all; line-height: 1.4;
+}
+.toast-success { background: #00a844; }
+.toast-error   { background: #c0392b; }
+.toast-info    { background: #1d4ed8; }
+@keyframes slideIn { from{transform:translateY(-16px);opacity:0} to{transform:translateY(0);opacity:1} }
+
+/* ── SPINNER ── */
+.spinner {
+  width: 17px; height: 17px; border: 2px solid rgba(255,255,255,.25);
+  border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite;
+  display: inline-block; vertical-align: middle;
+}
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* ── PAYOUT ANIMATION ── */
+@keyframes pulseGreen {
+  0%,100% { box-shadow: 0 0 0 0 rgba(0,200,83,0); }
+  50%      { box-shadow: 0 0 0 10px rgba(0,200,83,.12); }
+}
+.payout-success { animation: pulseGreen 1.5s ease 2; }
+
+/* ── WHATSAPP MODAL ── */
+#wa-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.82); z-index: 2000;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+#wa-modal {
+  width: 100%; max-width: 480px; border-radius: 28px 28px 0 0; overflow: hidden;
+  box-shadow: 0 -20px 60px rgba(0,0,0,.6); animation: sheetUp .35s cubic-bezier(.34,1.26,.64,1);
+  max-height: 85vh; overflow-y: auto;
+}
+@keyframes sheetUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.wa-header {
+  background: #075e54; padding: 16px 20px;
+  display: flex; align-items: center; gap: 12px;
+}
+.wa-header-avatar {
+  width: 46px; height: 46px; border-radius: 50%; background: #25d366;
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
+}
+.wa-header-info .wa-name   { color: #fff; font-weight: 700; font-size: 16px; }
+.wa-header-info .wa-status { color: rgba(255,255,255,.7); font-size: 12px; }
+.wa-body { background: #0b1f14; padding: 20px; }
+.wa-bubble {
+  background: #1f3a2a; border-radius: 0 14px 14px 14px; padding: 14px 16px;
+  max-width: min(85vw, 320px); margin-bottom: 4px; border-left: 3px solid #25d366;
+}
+.wa-bubble-text { color: #e9edef; font-size: 14px; line-height: 1.65; }
+.wa-bubble-time { color: rgba(255,255,255,.4); font-size: 11px; text-align: right; margin-top: 6px; }
+.wa-payout-highlight {
+  background: #25d366; color: #000; border-radius: 12px; padding: 12px 16px;
+  font-size: 20px; font-weight: 800; text-align: center; margin: 12px 0;
+}
+.wa-close-btn {
+  width: 100%; padding: 17px; background: #25d366; color: #000;
+  border: none; font-size: 15px; font-weight: 700; cursor: pointer;
+  font-family: var(--font);
+}
+.wa-close-btn:active { background: #22c55e; }
+
+/* ── CONFETTI ── */
+.confetti-piece {
+  position: fixed; width: 10px; height: 10px; border-radius: 2px;
+  animation: confettiFall 2s ease-out forwards; pointer-events: none; z-index: 3000;
+}
+@keyframes confettiFall {
+  0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+/* ── WARNING BANNER (MetaMask-style: left red border accent) ── */
+.warning-banner {
+  border-left: 4px solid var(--red); background: var(--red-d);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  padding: 14px 16px; margin-bottom: 12px;
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.warning-banner .wb-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+.warning-banner .wb-title { font-size: 14px; font-weight: 700; color: var(--red); margin-bottom: 3px; }
+.warning-banner .wb-body  { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+/* ── CLAIMS FILTER CHIPS ── */
+.filter-chips {
+  display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto;
+  scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 2px;
+}
+.filter-chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex-shrink: 0; padding: 7px 14px; border-radius: var(--r-pill);
+  border: none; background: var(--card); color: var(--muted);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-family: var(--font); transition: all .15s;
+}
+.chip.active { background: var(--orange); color: #fff; }
+.chip:active  { transform: scale(0.97); }
+
+/* ── TIER CARD ACCENTS ── */
+.tier-basic    { border-left: 3px solid #8E8E93 !important; }
+.tier-standard { border-left: 3px solid var(--blue) !important; }
+.tier-pro      { border-left: 3px solid var(--purple) !important; }
+.tier-card.selected.tier-basic    { border-color: var(--orange) !important; }
+.tier-card.selected.tier-standard { border-color: var(--orange) !important; }
+.tier-card.selected.tier-pro      { border-color: var(--orange) !important; }
+
+/* ── HERO POLICY SUB-INFO ── */
+.hero-days-row {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 6px; margin-bottom: 16px;
+}
+/* Level 3-ish: days count, prominent but sub-hero */
+.hero-days-num { font-size: 22px; font-weight: 700; color: var(--green); font-variant-numeric: tabular-nums; }
+/* Level 6: label beside it */
+.hero-days-label { font-size: 12px; color: #aaaaaa; font-weight: 400; }
+
+/* ── ACCESSIBILITY ── */
+.btn:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.form-input:focus-visible, .form-select:focus-visible { outline: 2px solid var(--orange); outline-offset: 1px; }
+.chip:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+.spinner { will-change: transform; }
+
+/* ── RESPONSIVE — Small phones ── */
+@media (max-width: 380px) {
+  .hero-amount { font-size: 32px; }
+  .hero-card { padding: 20px 14px; }
+  .stat-row { gap: 6px; }
+  .stat-cell .val { font-size: 15px; }
+  .quick-actions { gap: 8px; }
+  .qa-btn { min-width: 64px; }
+  .page-title { font-size: 20px; }
+}
+@media (max-width: 480px) {
+  .form-row { grid-template-columns: 1fr; }
+}
+/* ── RESPONSIVE — Tablet+ ── */
+@media (min-width: 540px) {
+  .page { max-width: 520px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  #app-header, #bottom-nav { max-width: 520px; left: 50%; transform: translateX(-50%); right: auto; width: 520px; }
+  #toast-container { max-width: 520px; left: 50%; transform: translateX(-50%); right: auto; width: 480px; }
+  .form-row { grid-template-columns: 1fr 1fr; gap: 16px; }
+}
+@media (min-width: 768px) {
+  .page { max-width: 640px; }
+  #app-header, #bottom-nav { max-width: 640px; width: 640px; }
+  #toast-container { max-width: 640px; width: 600px; }
+  .admin-grid { grid-template-columns: repeat(3, 1fr); }
+  .stat-row { gap: 12px; }
+  .btn { font-size: 16px; }
+  .auth-inner { max-width: 460px; }
+}
+/* ── RESPONSIVE — Landscape phones ── */
+@media (max-height: 500px) and (orientation: landscape) {
+  :root { --header-h: 50px; --nav-h: 60px; }
+  .hero-card { padding: 16px; }
+  .hero-amount { font-size: 28px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     AUTH
+     ═══════════════════════════════════════════ -->
+<div id="auth-wrapper">
+  <div class="auth-inner">
+    <div class="auth-logo">
+      <img src="/static/Zynvaro-bg-removed.png" alt="Zynvaro">
+      <h1>Zynvaro</h1>
+      <p>AI-Powered Parametric Income Shield</p>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="showAuthTab('login')">Login</button>
+      <button class="auth-tab" onclick="showAuthTab('register')">Register</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="login-form">
+      <div class="form-group">
+        <label class="form-label">Mobile Number</label>
+        <input class="form-input" id="login-phone" type="tel" placeholder="9876543210" inputmode="numeric">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="form-input" id="login-pass" type="password" placeholder="••••••••">
+      </div>
+      <button id="btn-login" class="btn btn-white btn-full mt-2" onclick="handleLogin()">
+        Login to Zynvaro
+      </button>
+      <div class="auth-demo-hint mt-3">
+        Demo: <b>9876543210</b> / <b>demo1234</b>
+      </div>
+    </div>
+
+    <!-- REGISTER -->
+    <div id="register-form" class="hidden">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input class="form-input" id="reg-name" type="text" placeholder="Ravi Kumar">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mobile</label>
+          <input class="form-input" id="reg-phone" type="tel" placeholder="9876543210" inputmode="numeric" autocomplete="tel">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" id="reg-pass" type="password" placeholder="Min 6 chars">
+        </div>
+        <div class="form-group">
+          <label class="form-label">City</label>
+          <select class="form-select" id="reg-city">
+            <option value="">Select city</option>
+            <option>Mumbai</option><option>Delhi</option>
+            <option>Bangalore</option><option>Hyderabad</option>
+            <option>Chennai</option><option>Pune</option><option>Kolkata</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Pincode</label>
+          <input class="form-input" id="reg-pincode" type="text" placeholder="560047" inputmode="numeric" autocomplete="postal-code">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Platform</label>
+          <select class="form-select" id="reg-platform">
+            <option>Blinkit</option><option>Zepto</option><option>Instamart</option>
+            <option>Zomato</option><option>Swiggy</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Working Shift</label>
+        <select class="form-select" id="reg-shift">
+          <option>Evening Peak (6PM-2AM)</option>
+          <option>Morning Peak (8AM-2PM)</option>
+          <option>Full Day (10AM-10PM)</option>
+        </select>
+      </div>
+      <button id="btn-register" class="btn btn-white btn-full mt-2" onclick="handleRegister()">
+        Create Account &amp; Get Protected
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     MAIN APP
+     ═══════════════════════════════════════════ -->
+<div id="app-wrapper" class="hidden">
+
+  <!-- HEADER -->
+  <header id="app-header">
+    <div class="header-user" onclick="navTo('dashboard')" style="gap:10px;">
+      <img src="/static/Zynvaro-bg-removed.png" alt="Zynvaro" style="height:28px;filter:drop-shadow(0 0 8px rgba(255,107,53,0.4));">
+      <div>
+        <div class="header-user-name" id="header-user-name">Worker</div>
+        <div class="header-user-city" id="header-user-city">–</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="header-icon-btn" onclick="loadDashboard()" title="Refresh" aria-label="Refresh dashboard">🔄</button>
+      <div style="position:relative;">
+        <button id="nav-avatar" onclick="toggleProfileMenu()" title="Profile" aria-label="Profile menu">R</button>
+        <div id="profile-menu" class="hidden" style="position:absolute;right:0;top:50px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px;min-width:180px;z-index:500;box-shadow:0 8px 32px rgba(0,0,0,.5);">
+          <div style="font-weight:700;font-size:14px;margin-bottom:2px;" id="pm-name">Worker</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:12px;" id="pm-detail">City · Platform</div>
+          <div style="border-top:1px solid var(--border);padding-top:10px;">
+            <button class="btn btn-danger btn-sm btn-full" onclick="logout()" style="font-size:13px;">🚪 Log Out</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════ DASHBOARD ══════════ -->
+  <div id="page-dashboard" class="page active">
+
+    <!-- hidden legacy IDs for JS compat -->
+    <span id="dash-greeting" style="display:none"></span>
+    <div id="dash-policy-card" style="display:none">
+      <div id="dash-policy-badge"></div>
+      <div id="dash-policy-detail"></div>
+    </div>
+
+    <!-- WARNING BANNER (shown when unprotected + high risk) -->
+    <div class="warning-banner hidden" id="dash-warning-banner">
+      <div class="wb-icon">🚨</div>
+      <div>
+        <div class="wb-title">High Risk Zone — No Coverage</div>
+        <div class="wb-body" id="dash-warning-body">Your zone risk is high. A trigger event today means ₹0 payout.</div>
+      </div>
+    </div>
+
+    <!-- HERO CARD -->
+    <div class="hero-card">
+      <div class="hero-label" id="hero-label">Max Weekly Coverage</div>
+      <div class="hero-amount" id="stat-max-payout">—</div>
+      <div class="hero-sub" id="hero-sub">Income Protection</div>
+      <div class="hero-days-row hidden" id="hero-days-row">
+        <span class="hero-days-num" id="hero-days-num">—</span>
+        <span class="hero-days-label">days remaining · <span id="hero-tier-name"></span></span>
+      </div>
+      <div class="hero-status-row">
+        <span id="dash-policy-badge2" class="hero-badge hero-badge-none">⚠ No Policy</span>
+        <span class="hero-premium-text" id="stat-premium-hero"></span>
+      </div>
+      <button class="hero-cta" id="dash-hero-cta" onclick="navTo('policy')">
+        Get Protected Now
+      </button>
+    </div>
+
+    <!-- QUICK ACTIONS (MetaMask-style squircle grid) -->
+    <div class="quick-actions">
+      <button class="qa-btn" onclick="navTo('policy')">
+        <span class="qa-icon">🛡</span>
+        <span class="qa-label">Shield</span>
+      </button>
+      <button class="qa-btn" onclick="navTo('triggers')">
+        <span class="qa-icon">⚡</span>
+        <span class="qa-label">Alerts</span>
+      </button>
+      <button class="qa-btn" onclick="navTo('claims')">
+        <span class="qa-icon">📋</span>
+        <span class="qa-label">Claims</span>
+      </button>
+      <button class="qa-btn" onclick="navTo('admin')">
+        <span class="qa-icon">📊</span>
+        <span class="qa-label">Stats</span>
+      </button>
+    </div>
+
+    <!-- STAT ROW -->
+    <div class="stat-row">
+      <div class="stat-cell">
+        <div class="val" id="stat-policy-status">—</div>
+        <div class="lbl">Policy Status</div>
+      </div>
+      <div class="stat-cell">
+        <div class="val" id="stat-premium">—</div>
+        <div class="lbl">Weekly Premium</div>
+      </div>
+      <div class="stat-cell">
+        <div class="val" id="stat-total-saved">₹0</div>
+        <div class="lbl">Total Received</div>
+      </div>
+      <div class="stat-cell">
+        <div class="val" id="stat-zone-risk">—</div>
+        <div class="lbl">Zone Risk</div>
+      </div>
+    </div>
+
+    <!-- RISK PROFILE -->
+    <div class="card">
+      <div class="section-hd">Risk Profile</div>
+      <div id="dash-risk-profile">
+        <p class="text-muted text-sm">Loading...</p>
+      </div>
+    </div>
+
+    <!-- LIVE TRIGGER FEED -->
+    <div class="card">
+      <div class="section-hd">
+        Live Alerts
+        <button class="btn btn-ghost btn-sm" onclick="loadTriggers()" style="padding:7px 14px;font-size:12px;">Refresh</button>
+      </div>
+      <div id="dash-trigger-feed">
+        <p class="text-muted text-sm">Checking triggers...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ POLICY ══════════ -->
+  <div id="page-policy" class="page">
+    <div class="page-title">Policy</div>
+    <div class="page-subtitle">AI-calculated premiums for your zone &amp; season.</div>
+
+    <div id="policy-active-banner" class="card hidden" style="border:2px solid var(--green);">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="fw-700 text-green" id="pol-active-tier">Active Policy</div>
+          <div class="text-muted text-sm mt-1" id="pol-active-detail"></div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-sm" style="background:var(--orange);color:#000;font-weight:700;" onclick="renewPolicy()">Renew</button>
+          <button class="btn btn-danger btn-sm" onclick="cancelPolicy()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-hd" style="margin-bottom:14px;">
+      Choose Your Shield
+      <span style="font-size:12px;color:var(--muted);font-weight:400">3 tiers</span>
+    </div>
+
+    <div id="tier-cards">
+      <p class="text-muted text-sm">Loading quotes...</p>
+    </div>
+
+    <div id="premium-breakdown" class="card hidden" style="border:2px solid var(--orange);">
+      <div class="section-hd" style="margin-bottom:4px;">
+        Breakdown
+        <span id="breakdown-tier-name" style="color:var(--orange);font-size:13px;font-weight:600;"></span>
+      </div>
+      <p class="text-sm text-muted mb-3">Why your premium is this amount:</p>
+      <div id="breakdown-rows"></div>
+      <div class="divider"></div>
+      <div id="breakdown-explanation"></div>
+      <div class="divider"></div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+        <button class="btn btn-white btn-full" id="btn-activate-policy" onclick="activatePolicy()">
+          Activate This Policy
+        </button>
+        <button class="btn btn-ghost btn-full" onclick="hidePremiumBreakdown()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ TRIGGERS ══════════ -->
+  <div id="page-triggers" class="page">
+    <div class="page-title">Triggers</div>
+    <div class="page-subtitle">Real-time parametric monitoring. Payouts are instant.</div>
+
+    <!-- Simulate Panel -->
+    <div class="card" style="border:1px solid var(--border);">
+      <div class="section-hd" style="margin-bottom:8px;">
+        Simulate Trigger
+        <span style="font-size:11px;color:var(--blue);background:var(--blue-d);padding:3px 9px;border-radius:var(--r-pill);font-weight:700;">DEMO</span>
+      </div>
+      <p class="text-sm text-muted mb-3">Force-fire a trigger to see zero-touch claims in action.</p>
+      <div class="form-group">
+        <label class="form-label">Trigger Type</label>
+        <select class="form-select" id="sim-trigger-type">
+          <option>Heavy Rainfall</option>
+          <option>Extreme Rain / Flooding</option>
+          <option>Severe Heatwave</option>
+          <option>Hazardous AQI</option>
+          <option>Platform Outage</option>
+          <option>Civil Disruption</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">City</label>
+        <select class="form-select" id="sim-city">
+          <option>Bangalore</option><option>Mumbai</option>
+          <option>Delhi</option><option>Hyderabad</option><option>Chennai</option>
+          <option>Pune</option><option>Kolkata</option>
+        </select>
+      </div>
+      <button id="btn-simulate-trigger" class="btn btn-primary btn-full mt-3" onclick="simulateTrigger()">
+        ⚡ Fire Trigger &amp; Auto-Generate Claims
+      </button>
+    </div>
+
+    <!-- Monitored Types -->
+    <div class="card">
+      <div class="section-hd">Monitored Types</div>
+      <div id="trigger-types-list">
+        <p class="text-muted text-sm">Loading...</p>
+      </div>
+    </div>
+
+    <!-- Recent Events -->
+    <div class="card">
+      <div class="section-hd">
+        Recent Events
+        <button class="btn btn-ghost btn-sm" onclick="loadTriggerEvents()" style="padding:7px 14px;font-size:12px;">Refresh</button>
+      </div>
+      <div id="trigger-events-list">
+        <p class="text-muted text-sm">Loading...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ CLAIMS ══════════ -->
+  <div id="page-claims" class="page">
+    <div class="page-title">Claims</div>
+    <div class="page-subtitle">Zero-touch. No forms, no calls, no waiting.</div>
+
+    <div class="stat-row" style="margin-bottom:14px;">
+      <div class="stat-cell">
+        <div class="val" id="cs-total">—</div>
+        <div class="lbl">Total Claims</div>
+      </div>
+      <div class="stat-cell">
+        <div class="val text-green" id="cs-approved">—</div>
+        <div class="lbl">Auto Approved</div>
+      </div>
+      <div class="stat-cell">
+        <div class="val text-blue" id="cs-payout">—</div>
+        <div class="lbl">Total Payout</div>
+      </div>
+      <div class="stat-cell">
+        <div class="val" id="cs-score">—</div>
+        <div class="lbl">Auth Score</div>
+      </div>
+    </div>
+
+    <div class="section-hd" style="margin-bottom:10px;">Your Claims</div>
+    <div class="filter-chips" id="claims-filter-chips">
+      <button class="chip active" onclick="filterClaims('all',this)">All</button>
+      <button class="chip" onclick="filterClaims('paid',this)">Paid</button>
+      <button class="chip" onclick="filterClaims('pending_review',this)">Pending</button>
+      <button class="chip" onclick="filterClaims('manual_review',this)">Manual Review</button>
+      <button class="chip" onclick="filterClaims('rejected',this)">Rejected</button>
+    </div>
+    <div id="claims-list">
+      <p class="text-muted text-sm">Loading claims...</p>
+    </div>
+  </div>
+
+  <!-- ══════════ ADMIN ══════════ -->
+  <div id="page-admin" class="page">
+    <div class="page-title">Admin</div>
+    <div class="page-subtitle">Live loss ratios, fraud monitoring &amp; platform analytics.</div>
+
+    <div class="admin-grid" id="admin-stats-grid">
+      <div class="admin-stat"><div class="val text-muted">—</div><div class="lbl">Loading...</div></div>
+    </div>
+
+    <div class="card">
+      <div class="section-hd">Loss Ratio</div>
+      <div class="gauge-wrap">
+        <div class="gauge-value" id="loss-ratio-val">—%</div>
+        <div class="gauge-label">Target &lt; 65% · Current loss ratio</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-hd">Claims by Trigger</div>
+      <div id="admin-trigger-breakdown">
+        <p class="text-muted text-sm">Loading...</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-hd">Registered Workers</div>
+      <div id="admin-workers-tbody-wrap">
+        <p class="text-muted text-sm">Loading...</p>
+      </div>
+    </div>
+
+    <!-- Hidden legacy table for JS compat -->
+    <table style="display:none;"><tbody id="admin-workers-tbody"></tbody></table>
+
+    <div class="card">
+      <div class="section-hd">City Performance</div>
+      <div id="admin-city-analytics">
+        <p class="text-muted text-sm">Loading...</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-hd">ML Fraud Model · Transparency</div>
+      <div id="admin-ml-info">
+        <p class="text-muted text-sm">Loading...</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-hd">All Claims</div>
+      <div id="admin-claims-list" style="max-height:min(560px, 60vh);overflow-y:auto;">
+        <p class="text-muted text-sm">Loading...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ BOTTOM NAV ══════════ -->
+  <nav id="bottom-nav">
+    <button class="bottom-nav-item nav-link active" onclick="navTo('dashboard')">
+      <span class="nav-icon">⌂</span>
+      <span>Home</span>
+    </button>
+    <button class="bottom-nav-item nav-link" onclick="navTo('policy')">
+      <span class="nav-icon">🛡</span>
+      <span>Policy</span>
+    </button>
+    <button class="bottom-nav-fab nav-link" onclick="navTo('triggers')">
+      <div class="fab-circle">⚡</div>
+      <span>Triggers</span>
+    </button>
+    <button class="bottom-nav-item nav-link" onclick="navTo('claims')">
+      <span class="nav-icon">📋</span>
+      <span>Claims</span>
+    </button>
+    <button class="bottom-nav-item nav-link" onclick="navTo('admin')">
+      <span class="nav-icon">📊</span>
+      <span>Admin</span>
+    </button>
+  </nav>
+
+</div><!-- /app-wrapper -->
+
+<!-- ═══════════════════════════════════════════
+     WHATSAPP MODAL
+     ═══════════════════════════════════════════ -->
+<div id="wa-modal-overlay" class="hidden" onclick="closeWAModal()">
+  <div id="wa-modal" onclick="event.stopPropagation()">
+    <div class="wa-header">
+      <div class="wa-header-avatar">⚡</div>
+      <div class="wa-header-info">
+        <div class="wa-name">Zynvaro Income Shield</div>
+        <div class="wa-status">🟢 Income Protection Active</div>
+      </div>
+    </div>
+    <div class="wa-body">
+      <div class="wa-bubble">
+        <div class="wa-bubble-text" id="wa-trigger-msg">
+          🚨 <b>Trigger Detected!</b><br>
+          Extreme Rain / Flooding in Mumbai
+        </div>
+        <div class="wa-bubble-time" id="wa-time">Today, 4:32 PM</div>
+      </div>
+      <div class="wa-bubble" style="margin-top:10px">
+        <div class="wa-bubble-text">
+          ✅ <b>Zero-Touch Claim Created!</b><br>
+          <span id="wa-claim-num" style="color:#25d366;font-size:12px">CLM-AUTO-XXXXXX</span>
+        </div>
+        <div class="wa-payout-highlight" id="wa-payout-amt">₹600 Auto-Credited</div>
+        <div class="wa-bubble-text" style="font-size:12px;color:rgba(255,255,255,.55)">
+          💳 Sent to your UPI ID on file.<br>
+          No forms. No calls. No waiting.
+        </div>
+        <div class="wa-bubble-time" id="wa-time2">Today, 4:32 PM</div>
+      </div>
+    </div>
+    <button class="wa-close-btn" onclick="closeWAModal()">
+      📋 View My Claims →
+    </button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════════════════════════════
+const API = '';
+let authToken = localStorage.getItem('zynvaro_token');
+let currentUser = JSON.parse(localStorage.getItem('zynvaro_user') || 'null');
+let selectedTier = null;
+let activePolicyData = null;
+
+// ════════════════════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════════════════════
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.innerHTML = `${type==='success'?'✅':type==='error'?'❌':'ℹ️'} ${esc(msg)}`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), type === 'error' ? 6000 : 4000);
+}
+
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  const res = await fetch(`${API}${path}`, { ...opts, headers: { ...headers, ...opts.headers } });
+  if (res.status === 401 && authToken) {
+    logout();
+    throw new Error('Session expired. Please log in again.');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Request failed' }));
+    throw new Error(err.detail || 'Request failed');
+  }
+  return res.json();
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s ?? '');
+  return d.innerHTML;
+}
+function fmt(n) { return '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
+function fmtScore(s) { const n = Number(s); return (isNaN(n) ? 0 : n).toFixed(0) + '/100'; }
+function timeAgo(iso) {
+  const diff = (Date.now() - new Date(iso)) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+function riskClass(score) {
+  if (score < 0.4) return 'risk-low';
+  if (score < 0.7) return 'risk-medium';
+  return 'risk-high';
+}
+function riskLabel(score) {
+  if (score < 0.4) return '🟢 Low Risk';
+  if (score < 0.7) return '🟡 Moderate';
+  return '🔴 High Risk';
+}
+function triggerIcon(type) {
+  const map = {
+    'Heavy Rainfall':'🌧️','Extreme Rain / Flooding':'🌊','Severe Heatwave':'🔥',
+    'Hazardous AQI':'🏭','Platform Outage':'☁️','Civil Disruption':'🚨'
+  };
+  return map[type] || '⚡';
+}
+function scoreColor(s) {
+  if (s >= 75) return '#00C853';
+  if (s >= 45) return '#F59E0B';
+  return '#EF4444';
+}
+
+// ════════════════════════════════════════════════════════════════
+// AUTH
+// ════════════════════════════════════════════════════════════════
+function showAuthTab(tab) {
+  document.getElementById('login-form').classList.toggle('hidden', tab !== 'login');
+  document.getElementById('register-form').classList.toggle('hidden', tab !== 'register');
+  document.querySelectorAll('.auth-tab').forEach((t, i) => t.classList.toggle('active', (i===0) === (tab==='login')));
+}
+
+async function handleLogin() {
+  const phone = document.getElementById('login-phone').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  if (!phone || !pass) return toast('Fill in all fields', 'error');
+
+  const btn = document.getElementById('btn-login');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Logging in...';
+
+  try {
+    const fd = new FormData();
+    fd.append('username', phone); fd.append('password', pass);
+    const res = await fetch(`${API}/auth/login`, { method: 'POST', body: fd });
+    if (!res.ok) throw new Error('Invalid credentials');
+    const data = await res.json();
+
+    authToken = data.access_token;
+    localStorage.setItem('zynvaro_token', authToken);
+    const profile = await api('/auth/me');
+    currentUser = profile;
+    localStorage.setItem('zynvaro_user', JSON.stringify(profile));
+
+    toast(`Welcome back, ${profile.full_name.split(' ')[0]}! 🎉`, 'success');
+    showApp();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = 'Login to Zynvaro';
+  }
+}
+
+async function handleRegister() {
+  const name    = document.getElementById('reg-name').value.trim();
+  const phone   = document.getElementById('reg-phone').value.trim();
+  const pass    = document.getElementById('reg-pass').value;
+  const city    = document.getElementById('reg-city').value;
+  const pincode = document.getElementById('reg-pincode').value.trim();
+  const platform= document.getElementById('reg-platform').value;
+  const shift   = document.getElementById('reg-shift').value;
+
+  if (!name || !phone || !pass || !city || !pincode) return toast('Fill in all required fields', 'error');
+  if (pass.length < 6) return toast('Password must be at least 6 characters', 'error');
+  if (phone.length < 10) return toast('Enter a valid 10-digit mobile number', 'error');
+
+  const btn = document.getElementById('btn-register');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Creating account...';
+
+  try {
+    const data = await api('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ full_name:name, phone, password:pass, city, pincode, platform, shift })
+    });
+    authToken = data.access_token;
+    localStorage.setItem('zynvaro_token', authToken);
+    const profile = await api('/auth/me');
+    currentUser = profile;
+    localStorage.setItem('zynvaro_user', JSON.stringify(profile));
+    toast(`Account created! Welcome, ${name.split(' ')[0]} 🚀`, 'success');
+    showApp();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = 'Create Account & Get Protected';
+  }
+}
+
+function logout() {
+  document.getElementById('profile-menu').classList.add('hidden');
+  authToken = null; currentUser = null;
+  selectedTier = null; activePolicyData = null;
+  localStorage.removeItem('zynvaro_token');
+  localStorage.removeItem('zynvaro_user');
+  document.getElementById('app-wrapper').classList.add('hidden');
+  document.getElementById('auth-wrapper').classList.remove('hidden');
+  toast('Logged out', 'info');
+}
+
+function toggleProfileMenu() {
+  const menu = document.getElementById('profile-menu');
+  menu.classList.toggle('hidden');
+}
+
+// Close profile menu when clicking elsewhere
+document.addEventListener('click', e => {
+  const menu = document.getElementById('profile-menu');
+  const avatar = document.getElementById('nav-avatar');
+  if (menu && !menu.classList.contains('hidden') && !menu.contains(e.target) && e.target !== avatar) {
+    menu.classList.add('hidden');
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// APP SHELL
+// ════════════════════════════════════════════════════════════════
+function showApp() {
+  document.getElementById('auth-wrapper').classList.add('hidden');
+  document.getElementById('app-wrapper').classList.remove('hidden');
+
+  if (currentUser) {
+    const first = currentUser.full_name.split(' ')[0];
+    document.getElementById('nav-avatar').textContent = first[0];
+    document.getElementById('header-user-name').textContent = first;
+    document.getElementById('header-user-city').textContent =
+      `${currentUser.city} · ${currentUser.platform}`;
+    // Profile menu details
+    document.getElementById('pm-name').textContent = currentUser.full_name;
+    document.getElementById('pm-detail').textContent =
+      `${currentUser.city} · ${currentUser.platform} · ${currentUser.shift}`;
+
+    const hour = new Date().getHours();
+    const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    const greetEl = document.getElementById('dash-greeting');
+    if (greetEl) greetEl.textContent = `${greet}, ${first} 👋`;
+  }
+
+  loadDashboard();
+}
+
+function navTo(page) {
+  const pageEl = document.getElementById(`page-${page}`);
+  if (!pageEl) { console.error('navTo: unknown page', page); return; }
+
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-link, .bottom-nav-item').forEach(l => l.classList.remove('active'));
+
+  pageEl.classList.add('active');
+  pageEl.scrollTop = 0;
+  document.querySelectorAll(`[onclick="navTo('${page}')"]`).forEach(l => l.classList.add('active'));
+
+  // Push history state so back button works within the app
+  if (history.state?.page !== page) {
+    history.pushState({ page }, '', `#${page}`);
+  }
+
+  if (page === 'dashboard') loadDashboard();
+  if (page === 'policy')    loadPolicyPage();
+  if (page === 'triggers')  { loadTriggerTypes(); loadTriggerEvents(); }
+  if (page === 'claims')    loadClaimsPage();
+  if (page === 'admin')     loadAdminPage();
+}
+
+// ════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════════════════════════════
+async function loadDashboard() {
+  try {
+    const [policy, claimStats, triggers] = await Promise.all([
+      api('/policies/active').catch(() => null),
+      api('/claims/stats').catch(() => null),
+      api('/triggers/?limit=5').catch(() => []),
+    ]);
+
+    activePolicyData = policy;
+
+    // ── Stats row ──
+    document.getElementById('stat-policy-status').innerHTML =
+      policy ? '<span style="color:var(--green)">ACTIVE</span>' : '<span style="color:var(--red)">NONE</span>';
+    document.getElementById('stat-premium').textContent   = policy ? fmt(policy.weekly_premium)+'/wk' : '—';
+    document.getElementById('stat-max-payout').textContent = policy ? fmt(policy.max_weekly_payout) : '—';
+    document.getElementById('stat-total-saved').textContent = claimStats ? fmt(claimStats.total_payout_inr) : '₹0';
+
+    // ── Hero card ──
+    const badge2 = document.getElementById('dash-policy-badge2');
+    const heroCta = document.getElementById('dash-hero-cta');
+    const heroDaysRow = document.getElementById('hero-days-row');
+    const warningBanner = document.getElementById('dash-warning-banner');
+    if (policy) {
+      badge2.className = 'hero-badge hero-badge-active';
+      badge2.textContent = `🛡️ ${policy.tier}`;
+      document.getElementById('stat-premium-hero').textContent = `${fmt(policy.weekly_premium)}/week`;
+      heroCta.textContent = 'View Policy Details';
+      heroCta.onclick = () => navTo('policy');
+      // Show days remaining row
+      const daysLeft = Math.max(0, Math.ceil((new Date(policy.end_date) - Date.now()) / 86400000));
+      document.getElementById('hero-days-num').textContent = daysLeft;
+      document.getElementById('hero-tier-name').textContent = policy.tier;
+      heroDaysRow.classList.remove('hidden');
+      document.getElementById('hero-sub').classList.add('hidden');
+      warningBanner.classList.add('hidden');
+    } else {
+      badge2.className = 'hero-badge hero-badge-none';
+      badge2.textContent = '⚠ Unprotected';
+      document.getElementById('stat-premium-hero').textContent = '';
+      heroCta.textContent = 'Get Protected Now';
+      heroCta.onclick = () => navTo('policy');
+      heroDaysRow.classList.add('hidden');
+      document.getElementById('hero-sub').classList.remove('hidden');
+      // Warning banner if zone risk is high
+      const zr = currentUser?.zone_risk_score || 0;
+      if (zr > 0.5) {
+        document.getElementById('dash-warning-body').textContent =
+          `Your zone risk is ${(zr*100).toFixed(0)}%. A trigger event today means ₹0 payout.`;
+        warningBanner.classList.remove('hidden');
+      } else {
+        warningBanner.classList.add('hidden');
+      }
+    }
+
+    // ── Zone risk ──
+    if (currentUser) {
+      const zr = currentUser.zone_risk_score || 0;
+      const zrColor = zr > 0.7 ? 'var(--red)' : zr > 0.45 ? 'var(--yellow)' : 'var(--green)';
+      document.getElementById('stat-zone-risk').innerHTML =
+        `<span style="color:${zrColor}">${(zr*100).toFixed(0)}%</span>`;
+    }
+
+    // ── Legacy compat ──
+    const policyEl = document.getElementById('dash-policy-detail');
+    if (policy) {
+      document.getElementById('dash-policy-badge').innerHTML =
+        `<span class="risk-chip risk-low">✅ ACTIVE</span>`;
+      policyEl.innerHTML = `<b>${esc(policy.tier)}</b> · #${esc(policy.policy_number)}`;
+    } else {
+      document.getElementById('dash-policy-badge').innerHTML =
+        `<span class="risk-chip risk-high">❌ UNPROTECTED</span>`;
+      policyEl.innerHTML = `No active policy.`;
+    }
+
+    // ── Risk profile — static header renders instantly, AI narrative loads async ──
+    if (currentUser) {
+      const riskScore = currentUser.zone_risk_score;
+      document.getElementById('dash-risk-profile').innerHTML = `
+        <div class="list-item" style="border:none;padding:0 0 12px;">
+          <div class="list-avatar" style="background:var(--orange-d);color:var(--orange);font-size:18px;">📍</div>
+          <div class="list-body">
+            <div class="list-title">${esc(currentUser.city)} · ${esc(currentUser.pincode)}</div>
+            <div class="list-sub">${esc(currentUser.platform)} · ${esc(currentUser.shift)}</div>
+          </div>
+          <div class="list-right">
+            <span class="risk-chip ${riskClass(riskScore)}">${riskLabel(riskScore)}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-bottom:12px;">
+          <span>Claims: <b style="color:var(--text)">${currentUser.claim_history_count}</b></span>
+          <span>Clean streak: <b style="color:var(--text)">${currentUser.disruption_streak} wks</b></span>
+          <span>Zone risk: <b style="color:var(--text)">${(riskScore*100).toFixed(0)}%</b></span>
+        </div>
+        <div id="risk-narrative-wrap" style="border-top:1px solid var(--border);padding-top:12px;">
+          <p class="text-muted text-sm" style="font-style:italic;">🤖 Generating AI risk analysis...</p>
+        </div>`;
+      // Non-blocking — fills in AI narrative after primary dashboard renders
+      loadRiskNarrative();
+    }
+
+    // ── Trigger feed ──
+    renderTriggerFeed(triggers, 'dash-trigger-feed');
+
+  } catch(e) {
+    console.error(e);
+    if (e.message !== 'Session expired. Please log in again.') {
+      toast('Failed to load dashboard data', 'error');
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// AI RISK NARRATIVE (non-blocking, called from loadDashboard)
+// ════════════════════════════════════════════════════════════════
+async function loadRiskNarrative() {
+  try {
+    const rp = await api('/policies/risk-profile');
+    const wrap = document.getElementById('risk-narrative-wrap');
+    if (!wrap) return;
+
+    const badge = rp.llm_powered
+      ? `<span style="font-size:10px;background:var(--purple-d);color:var(--purple);padding:2px 8px;border-radius:50px;font-weight:700;white-space:nowrap;">✨ Claude AI</span>`
+      : `<span style="font-size:10px;background:var(--card3);color:var(--muted);padding:2px 8px;border-radius:50px;white-space:nowrap;">Rule-based</span>`;
+
+    const keyRisks = (rp.key_risks || []).length
+      ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">
+           ${rp.key_risks.map(r => `<span style="font-size:11px;background:var(--red-d);color:var(--red);padding:2px 8px;border-radius:50px;">⚠ ${r}</span>`).join('')}
+         </div>`
+      : '';
+
+    const seasonAlert = rp.seasonal_alert
+      ? `<div style="margin-top:10px;font-size:12px;color:var(--yellow);line-height:1.5;"><span style="margin-right:4px;">🌦</span>${rp.seasonal_alert}</div>`
+      : '';
+
+    const tierTip = rp.tier_tip
+      ? `<div style="margin-top:10px;font-size:12px;color:var(--blue);line-height:1.5;"><span style="margin-right:4px;">💡</span>${rp.tier_tip}</div>`
+      : '';
+
+    const premRow = rp.weekly_premium
+      ? `<div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px;border-top:1px solid var(--border);padding-top:10px;">
+           <span style="color:var(--muted);">Suggested premium <b style="color:var(--text);">${fmt(rp.weekly_premium)}/wk</b></span>
+           <span style="color:var(--muted);">Max daily payout <b style="color:var(--text);">${fmt(rp.max_daily_payout)}</b></span>
+           <span style="color:var(--muted);">Income coverage <b style="color:var(--text);">${rp.income_replacement}%</b></span>
+         </div>`
+      : '';
+
+    wrap.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:12px;font-weight:700;color:var(--text);">AI Risk Analysis</span>
+        ${badge}
+      </div>
+      <p style="font-size:13px;line-height:1.65;color:var(--muted);">${rp.narrative}</p>
+      ${keyRisks}
+      ${seasonAlert}
+      ${tierTip}
+      ${premRow}
+    `;
+  } catch(e) {
+    const wrap = document.getElementById('risk-narrative-wrap');
+    if (wrap) wrap.innerHTML = '<p class="text-muted text-sm">Risk analysis unavailable.</p>';
+  }
+}
+
+function renderTriggerFeed(events, containerId) {
+  const el = document.getElementById(containerId);
+  if (!events || events.length === 0) {
+    el.innerHTML = '<p class="text-muted text-sm" style="padding:8px 0;">✅ No active disruptions. Monitoring continues...</p>';
+    return;
+  }
+  el.innerHTML = events.map(e => `
+    <div class="trigger-item">
+      <div class="trigger-icon-wrap">${triggerIcon(e.trigger_type)}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="flex items-center gap-2 mb-1" style="flex-wrap:wrap;">
+          <b class="text-sm">${esc(e.trigger_type)}</b>
+          <span class="trigger-badge sev-${e.severity}">${e.severity}</span>
+        </div>
+        <p class="text-muted text-xs" style="line-height:1.4;">${esc(e.description || '')}</p>
+        <p class="text-xs mt-1" style="color:var(--muted)">
+          📍 ${esc(e.city)} · ${e.measured_value} ${esc(e.unit)} · ${timeAgo(e.detected_at)}
+        </p>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadTriggers() {
+  try {
+    const events = await api('/triggers/?limit=5');
+    renderTriggerFeed(events, 'dash-trigger-feed');
+  } catch(e) {
+    console.error('[loadTriggers]', e);
+    const el = document.getElementById('dash-trigger-feed');
+    if (el) el.innerHTML = '<p class="text-muted text-sm" style="padding:8px 0;">Failed to load triggers.</p>';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// POLICY PAGE
+// ════════════════════════════════════════════════════════════════
+async function loadPolicyPage() {
+  try {
+    const [quotesData, activePolicy] = await Promise.all([
+      api('/policies/quote/all'),
+      api('/policies/active').catch(() => null),
+    ]);
+    activePolicyData = activePolicy;
+
+    if (activePolicy) {
+      document.getElementById('policy-active-banner').classList.remove('hidden');
+      document.getElementById('pol-active-tier').textContent = `Active: ${activePolicy.tier}`;
+      document.getElementById('pol-active-detail').textContent =
+        `${fmt(activePolicy.weekly_premium)}/week · Expires ${new Date(activePolicy.end_date).toLocaleDateString('en-IN')} · Max ${fmt(activePolicy.max_weekly_payout)}/week`;
+    } else {
+      document.getElementById('policy-active-banner').classList.add('hidden');
+    }
+
+    // Store tier data in a lookup so we don't need to inline JSON in onclick attributes
+    const tiersEl = document.getElementById('tier-cards');
+    const tierEmojis = ['🟢', '🔵', '🟣'];
+    window._tierQuotes = {};
+    quotesData.tiers.forEach(t => { window._tierQuotes[t.tier] = t; });
+    tiersEl.innerHTML = quotesData.tiers.map((t, i) => {
+      const safeTier = esc(t.tier);
+      const tierAccent = t.tier === 'Basic Shield' ? ' tier-basic' : t.tier === 'Standard Guard' ? ' tier-standard' : ' tier-pro';
+      return `
+      <div class="tier-card${tierAccent}${t.tier === 'Standard Guard' ? ' recommended' : ''}${activePolicy?.tier === t.tier ? ' selected' : ''}"
+           onclick="selectTierByName('${safeTier}')">
+        ${t.tier === 'Standard Guard' ? '<div class="tier-badge">⭐ Recommended</div>' : ''}
+        <div class="tier-name">${tierEmojis[i]} ${esc(t.tier)}</div>
+        <div class="tier-price">${fmt(t.weekly_premium)}<span>/week</span></div>
+        <p class="text-xs text-muted mt-1">Base: ${fmt(t.base_premium)} · AI-adjusted for your zone</p>
+        <ul class="tier-features mt-3">
+          ${getTierFeatures(t.tier).map(f =>
+            `<li class="${f.yes?'yes':'no'}">${esc(f.label)}</li>`
+          ).join('')}
+        </ul>
+        <div class="mt-3 text-sm">
+          <span class="text-green fw-700">Up to ${fmt(t.max_weekly_payout)}/week</span>
+        </div>
+        <button class="btn btn-white btn-full mt-3" style="font-size:14px;"
+          onclick="event.stopPropagation();selectTierByName('${safeTier}')">
+          View Breakdown →
+        </button>
+      </div>
+    `}).join('');
+
+  } catch(e) {
+    toast('Failed to load quotes: ' + e.message, 'error');
+  }
+}
+
+function getTierFeatures(tier) {
+  const all = [
+    { label: 'AQI > 400 / Heatwave',         tiers: ['Basic Shield','Standard Guard','Pro Armor'] },
+    { label: 'Heavy Rainfall',                tiers: ['Standard Guard','Pro Armor'] },
+    { label: 'Extreme Rain / Flooding',       tiers: ['Standard Guard','Pro Armor'] },
+    { label: 'Platform Outage',               tiers: ['Pro Armor'] },
+    { label: 'Civil Disruption',              tiers: ['Pro Armor'] },
+  ];
+  return all.map(f => ({ label: f.label, yes: f.tiers.includes(tier) }));
+}
+
+function selectTierByName(tierName) {
+  const data = window._tierQuotes?.[tierName];
+  if (!data) { toast('Tier data not found', 'error'); return; }
+  selectTier(tierName, data);
+}
+
+function selectTier(tierName, quoteData) {
+  selectedTier = { name: tierName, quote: quoteData };
+  document.querySelectorAll('.tier-card').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('.tier-card').forEach(c => {
+    if (c.querySelector('.tier-name')?.textContent?.includes(tierName)) c.classList.add('selected');
+  });
+
+  const bk = quoteData.breakdown;
+  document.getElementById('breakdown-tier-name').textContent = tierName;
+  document.getElementById('btn-activate-policy').textContent = `✅ Activate ${tierName}`;
+
+  document.getElementById('breakdown-rows').innerHTML = `
+    <div class="breakdown-row"><span>📊 Base Premium</span><span>${fmt(quoteData.base_premium)}</span></div>
+    <div class="breakdown-row"><span>📍 Zone Risk (${(bk.zone_risk_score*100).toFixed(0)}%)</span><span class="breakdown-pos">+${fmt(bk.zone_loading_inr)}</span></div>
+    <div class="breakdown-row"><span>🌦️ Seasonal Adjustment</span><span class="${bk.seasonal_loading_inr>0?'breakdown-pos':'breakdown-neg'}">${bk.seasonal_loading_inr>0?'+':''}${fmt(bk.seasonal_loading_inr)}</span></div>
+    <div class="breakdown-row"><span>📋 Claim History (${bk.claim_history_count})</span><span class="breakdown-pos">+${fmt(bk.claim_loading_inr)}</span></div>
+    <div class="breakdown-row"><span>🏆 Streak Discount (${bk.streak_weeks} wks)</span><span class="breakdown-neg">${fmt(bk.streak_discount_inr)}</span></div>
+    <div class="breakdown-row" style="border-top:2px solid var(--orange);padding-top:12px;margin-top:4px;"><span>💰 Your Weekly Premium</span><span style="color:var(--orange)">${fmt(quoteData.weekly_premium)}</span></div>
+  `;
+
+  document.getElementById('breakdown-explanation').innerHTML =
+    `<div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--muted);">🤖 AI EXPLANATION</div>` +
+    quoteData.explanation.map(e => `<p class="text-sm mt-1" style="color:var(--muted);">• ${e}</p>`).join('');
+
+  document.getElementById('premium-breakdown').classList.remove('hidden');
+  // Scroll within the active page container, not the body
+  const breakdownEl = document.getElementById('premium-breakdown');
+  const pageEl = document.getElementById('page-policy');
+  if (breakdownEl && pageEl) {
+    const offsetTop = breakdownEl.offsetTop - pageEl.offsetTop - 80;
+    pageEl.scrollTo({ top: offsetTop, behavior: 'smooth' });
+  }
+}
+
+function hidePremiumBreakdown() {
+  document.getElementById('premium-breakdown').classList.add('hidden');
+  document.querySelectorAll('.tier-card').forEach(c => c.classList.remove('selected'));
+  selectedTier = null;
+}
+
+async function activatePolicy() {
+  if (!selectedTier) return;
+  const tierName = selectedTier.name; // capture before it gets cleared
+  const btn = document.getElementById('btn-activate-policy');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Activating...';
+  try {
+    await api('/policies/', {
+      method: 'POST',
+      body: JSON.stringify({ tier: tierName })
+    });
+    toast(`✅ ${tierName} activated! You're now protected.`, 'success');
+    hidePremiumBreakdown();
+    loadPolicyPage(); // recreates the DOM — btn reference is now stale
+    const profile = await api('/auth/me');
+    currentUser = profile;
+    localStorage.setItem('zynvaro_user', JSON.stringify(profile));
+  } catch(e) {
+    toast(e.message, 'error');
+    // Re-enable button only on failure; on success the page has already reloaded
+    const freshBtn = document.getElementById('btn-activate-policy');
+    if (freshBtn) { freshBtn.disabled = false; freshBtn.innerHTML = `✅ Activate ${tierName}`; }
+  }
+}
+
+async function cancelPolicy() {
+  if (!activePolicyData) return;
+  if (!confirm('Cancel your active policy? You will lose income protection.')) return;
+  try {
+    await api(`/policies/${activePolicyData.id}`, { method: 'DELETE' });
+    toast('Policy cancelled.', 'info');
+    activePolicyData = null;
+    loadPolicyPage();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function renewPolicy() {
+  if (!activePolicyData) return;
+  try {
+    const data = await api('/policies/renew', { method: 'POST' });
+    toast(`Policy renewed! New expiry: ${new Date(data.end_date).toLocaleDateString('en-IN')}`, 'success');
+    loadPolicyPage();
+  } catch(e) {
+    toast(e.message || 'Renewal failed', 'error');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// TRIGGERS PAGE
+// ════════════════════════════════════════════════════════════════
+async function loadTriggerTypes() {
+  try {
+    const types = await api('/triggers/types');
+    document.getElementById('trigger-types-list').innerHTML = types.map(t => `
+      <div class="trigger-item">
+        <div class="trigger-icon-wrap">${triggerIcon(t.trigger_type)}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="list-title">${esc(t.trigger_type)}</div>
+          <div class="list-sub">
+            Threshold: <b style="color:var(--orange)">${t.threshold} ${esc(t.unit)}</b>
+            · ${esc(t.source_primary)}
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    document.getElementById('trigger-types-list').innerHTML =
+      '<p class="text-muted text-sm" style="padding:8px 0;">Failed to load trigger types.</p>';
+  }
+}
+
+async function loadTriggerEvents() {
+  try {
+    const events = await api('/triggers/?limit=15');
+    const el = document.getElementById('trigger-events-list');
+    if (!events.length) {
+      el.innerHTML = '<p class="text-muted text-sm" style="padding:8px 0;">No events yet. Use Simulate above.</p>';
+      return;
+    }
+    el.innerHTML = events.map(e => `
+      <div class="trigger-item">
+        <div class="trigger-icon-wrap">${triggerIcon(e.trigger_type)}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="flex items-center gap-2 mb-1" style="flex-wrap:wrap;">
+            <b class="text-sm">${esc(e.trigger_type)}</b>
+            <span class="trigger-badge sev-${e.severity}">${e.severity}</span>
+            ${e.is_validated ? '<span class="trigger-badge" style="background:var(--green-d);color:var(--green);">✅ Verified</span>' : ''}
+          </div>
+          <p class="text-xs text-muted" style="line-height:1.4;">${esc(e.description || '')}</p>
+          <div class="flex gap-3 mt-1 text-xs text-muted" style="flex-wrap:wrap;">
+            <span>📍 ${esc(e.city)}</span>
+            <span>📊 ${e.measured_value} ${esc(e.unit)}</span>
+            <span>🕐 ${timeAgo(e.detected_at)}</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    const el = document.getElementById('trigger-events-list');
+    if (el) el.innerHTML = '<p class="text-muted text-sm" style="padding:8px 0;">Failed to load events.</p>';
+  }
+}
+
+async function simulateTrigger() {
+  const trigType = document.getElementById('sim-trigger-type').value;
+  const city     = document.getElementById('sim-city').value;
+  const btn = document.getElementById('btn-simulate-trigger');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Firing trigger...';
+  try {
+    const res = await api('/triggers/simulate', {
+      method: 'POST',
+      body: JSON.stringify({ trigger_type: trigType, city })
+    });
+    toast(`🚨 ${trigType} triggered in ${city}! Processing claims...`, 'info');
+    loadTriggerEvents();
+
+    // Poll for the new claim with retry — background task may take 1–5s
+    (async () => {
+      let payoutAmt = 0;
+      let claimNum = 'CLM-AUTO-' + Math.random().toString(36).substr(2,6).toUpperCase();
+      const delays = [1500, 2000, 3000]; // retry at 1.5s, 3.5s, 6.5s
+      for (const delay of delays) {
+        await new Promise(r => setTimeout(r, delay));
+        if (!document.getElementById('page-triggers').classList.contains('active')) return;
+        try {
+          const claims = await api('/claims/');
+          const newest = claims[0];
+          if (newest && newest.trigger_type === trigType) {
+            payoutAmt = newest.payout_amount;
+            claimNum = newest.claim_number;
+            break;
+          }
+        } catch(_) {}
+      }
+      if (!document.getElementById('page-triggers').classList.contains('active')) return;
+      showWAModal(trigType, city, payoutAmt, claimNum);
+    })();
+
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '⚡ Fire Trigger & Auto-Generate Claims';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// CLAIMS PAGE
+// ════════════════════════════════════════════════════════════════
+let _allClaims = [];
+
+async function loadClaimsPage() {
+  try {
+    const [claims, stats] = await Promise.all([
+      api('/claims/'),
+      api('/claims/stats'),
+    ]);
+    _allClaims = claims;
+
+    document.getElementById('cs-total').textContent    = stats.total_claims;
+    document.getElementById('cs-approved').textContent = stats.auto_approved;
+    document.getElementById('cs-payout').textContent   = fmt(stats.total_payout_inr);
+    document.getElementById('cs-score').textContent    = fmtScore(stats.avg_authenticity_score);
+
+    // Reset filter to "all"
+    document.querySelectorAll('#claims-filter-chips .chip').forEach(c => c.classList.remove('active'));
+    const allChip = document.querySelector('#claims-filter-chips .chip');
+    if (allChip) allChip.classList.add('active');
+
+    const el = document.getElementById('claims-list');
+    if (!claims.length) {
+      el.innerHTML = `
+        <div class="card text-center" style="padding:32px 16px;">
+          <div style="font-size:40px;margin-bottom:12px;">📭</div>
+          <p style="font-weight:600;margin-bottom:6px;">No claims yet</p>
+          <p class="text-muted text-sm">When a parametric trigger fires in your city,<br>a claim is auto-generated and paid instantly.</p>
+          <button class="btn btn-ghost btn-sm mt-3" onclick="navTo('triggers')">
+            ⚡ Simulate a Trigger
+          </button>
+        </div>`;
+      return;
+    }
+    el.innerHTML = claims.map(c => renderClaimCard(c)).join('');
+  } catch(e) {
+    toast('Error loading claims: ' + e.message, 'error');
+  }
+}
+
+function filterClaims(status, chipEl) {
+  document.querySelectorAll('#claims-filter-chips .chip').forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+  const filtered = status === 'all' ? _allClaims : _allClaims.filter(c => c.status === status);
+  const el = document.getElementById('claims-list');
+  if (!filtered.length) {
+    el.innerHTML = '<p class="text-muted text-sm" style="padding:16px 0 8px;">No claims with this status.</p>';
+    return;
+  }
+  el.innerHTML = filtered.map(c => renderClaimCard(c)).join('');
+}
+
+function renderClaimCard(c, isAdmin = false) {
+  const statusClass = {
+    'auto_approved': 'status-auto-approved', 'paid': 'status-paid',
+    'pending_review': 'status-pending', 'manual_review': 'status-manual',
+    'rejected': 'status-rejected',
+  }[c.status] || 'status-pending';
+
+  const sc = scoreColor(c.authenticity_score);
+  const reviewable = isAdmin && (c.status === 'pending_review' || c.status === 'manual_review');
+
+  return `
+    <div class="claim-card ${c.paid_at ? 'payout-success' : ''}" id="claim-card-${c.id}">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <div class="list-avatar" style="width:38px;height:38px;font-size:17px;background:var(--card2);">
+            ${triggerIcon(c.trigger_type || '⚡')}
+          </div>
+          <div>
+            <div class="list-title" style="font-size:13px;">${esc(c.trigger_type || 'Disruption')}</div>
+            <div class="text-xs text-muted">#${esc(c.claim_number)}</div>
+          </div>
+        </div>
+        <span class="claim-status-badge ${statusClass}">${c.status.replace(/_/g,' ').toUpperCase()}</span>
+      </div>
+
+      <div class="flex gap-4" style="flex-wrap:wrap;font-size:13px;margin-top:10px;">
+        <div>Payout: <b class="text-green">${fmt(c.payout_amount)}</b></div>
+        <div>City: <b>${esc(c.trigger_city || '—')}</b></div>
+        <div class="text-muted">${timeAgo(c.created_at)}</div>
+      </div>
+
+      <div class="mt-2">
+        <div class="flex justify-between text-xs mb-1">
+          <span class="text-muted">Authenticity Score</span>
+          <span style="color:${sc};font-weight:700;">${fmtScore(c.authenticity_score)}</span>
+        </div>
+        <div class="score-bar">
+          <div class="score-fill" style="width:${c.authenticity_score}%;background:${sc}"></div>
+        </div>
+      </div>
+
+      ${c.paid_at ? `<div class="text-xs text-green mt-2">✅ Paid ${timeAgo(c.paid_at)} · Ref: ${esc(c.payment_ref || 'MOCK-UPI')}</div>` : ''}
+      ${c.fraud_flags ? `<div class="text-xs mt-1" style="color:var(--yellow);">⚠️ ${esc(c.fraud_flags)}</div>` : ''}
+
+      ${reviewable ? `
+        <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:12px;">
+          <div class="text-xs text-muted" style="margin-bottom:8px;">⚖️ Review fraud flags above, then authorize or deny this payout:</div>
+          <div class="flex gap-2">
+            <button class="btn btn-success btn-sm" style="flex:1;" onclick="adminApproveClaim(${c.id})">✅ Authorize Payout</button>
+            <button class="btn btn-danger btn-sm" style="flex:1;" onclick="adminRejectClaim(${c.id})">❌ Deny Claim</button>
+          </div>
+        </div>` : ''}
+    </div>
+  `;
+}
+
+async function adminApproveClaim(claimId) {
+  // Disable buttons immediately to prevent double-click
+  const card = document.getElementById(`claim-card-${claimId}`);
+  if (card) card.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+  try {
+    const updated = await api(`/claims/${claimId}/approve`, { method: 'PATCH' });
+    if (card) card.outerHTML = renderClaimCard(updated, true);
+    toast('Claim approved — payout issued', 'success');
+    refreshAdminStats();
+  } catch(e) {
+    toast('Approve failed: ' + e.message, 'error');
+    if (card) card.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+  }
+}
+
+async function adminRejectClaim(claimId) {
+  const card = document.getElementById(`claim-card-${claimId}`);
+  if (card) card.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+  try {
+    const updated = await api(`/claims/${claimId}/reject`, { method: 'PATCH' });
+    if (card) card.outerHTML = renderClaimCard(updated, true);
+    toast('Claim rejected', 'info');
+    refreshAdminStats();
+  } catch(e) {
+    toast('Reject failed: ' + e.message, 'error');
+    if (card) card.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+  }
+}
+
+async function refreshAdminStats() {
+  try {
+    const stats = await api('/claims/admin/stats');
+    document.getElementById('admin-stats-grid').innerHTML = `
+      <div class="admin-stat"><div class="val text-blue">${stats.total_workers}</div><div class="lbl">Workers</div></div>
+      <div class="admin-stat"><div class="val text-green">${stats.active_policies}</div><div class="lbl">Active Policies</div></div>
+      <div class="admin-stat"><div class="val text-orange">${fmt(stats.weekly_premium_collection_inr)}</div><div class="lbl">Premium/week</div></div>
+      <div class="admin-stat"><div class="val">${stats.total_claims}</div><div class="lbl">Total Claims</div></div>
+      <div class="admin-stat"><div class="val text-green">${stats.auto_approved_claims}</div><div class="lbl">Auto-Approved</div></div>
+      <div class="admin-stat"><div class="val text-red">${fmt(stats.total_payout_inr)}</div><div class="lbl">Total Payouts</div></div>
+    `;
+    const lrEl = document.getElementById('loss-ratio-val');
+    lrEl.textContent = stats.loss_ratio_pct.toFixed(1) + '%';
+    lrEl.style.color = stats.loss_ratio_pct < 65 ? 'var(--green)' : stats.loss_ratio_pct < 80 ? 'var(--yellow)' : 'var(--red)';
+  } catch(_) {}
+}
+
+// ════════════════════════════════════════════════════════════════
+// ADMIN PAGE
+// ════════════════════════════════════════════════════════════════
+async function loadAdminPage() {
+  try {
+    const [stats, allClaims, workers, cityStats, mlInfo] = await Promise.all([
+      api('/claims/admin/stats'),
+      api('/claims/admin/all?limit=20'),
+      api('/claims/admin/workers').catch(() => []),
+      api('/analytics/cities').catch(() => []),
+      api('/policies/ml-model-info').catch(() => null),
+    ]);
+
+    // Stats grid
+    document.getElementById('admin-stats-grid').innerHTML = `
+      <div class="admin-stat"><div class="val text-blue">${stats.total_workers}</div><div class="lbl">Workers</div></div>
+      <div class="admin-stat"><div class="val text-green">${stats.active_policies}</div><div class="lbl">Active Policies</div></div>
+      <div class="admin-stat"><div class="val text-orange">${fmt(stats.weekly_premium_collection_inr)}</div><div class="lbl">Premium/week</div></div>
+      <div class="admin-stat"><div class="val">${stats.total_claims}</div><div class="lbl">Total Claims</div></div>
+      <div class="admin-stat"><div class="val text-green">${stats.auto_approved_claims}</div><div class="lbl">Auto-Approved</div></div>
+      <div class="admin-stat"><div class="val text-red">${fmt(stats.total_payout_inr)}</div><div class="lbl">Total Payouts</div></div>
+    `;
+
+    // Loss ratio
+    const lrEl = document.getElementById('loss-ratio-val');
+    lrEl.textContent = stats.loss_ratio_pct.toFixed(1) + '%';
+    lrEl.style.color = stats.loss_ratio_pct < 65 ? 'var(--green)' : stats.loss_ratio_pct < 80 ? 'var(--yellow)' : 'var(--red)';
+
+    // Trigger breakdown
+    const tb = stats.claims_by_trigger;
+    document.getElementById('admin-trigger-breakdown').innerHTML = Object.keys(tb).length ?
+      Object.entries(tb).map(([k,v]) => `
+        <div class="list-item">
+          <div class="list-avatar" style="width:38px;height:38px;font-size:18px;">${triggerIcon(k)}</div>
+          <div class="list-body"><div class="list-title">${k}</div></div>
+          <div class="list-right"><div class="list-val">${v}</div><div class="list-val-sub">claims</div></div>
+        </div>
+      `).join('') :
+      '<p class="text-muted text-sm" style="padding:8px 0;">No claims yet. Simulate a trigger.</p>';
+
+    // Workers — mobile list
+    const wrapEl = document.getElementById('admin-workers-tbody-wrap');
+    if (workers.length) {
+      wrapEl.innerHTML = workers.map(w => {
+        const tierColor = w.active_tier === 'Pro Armor'      ? 'var(--purple)' :
+                          w.active_tier === 'Standard Guard'  ? 'var(--blue)'   :
+                          w.active_tier                        ? 'var(--green)'  : 'var(--muted)';
+        const riskCol   = w.zone_risk_score > 0.7 ? 'var(--red)' :
+                          w.zone_risk_score > 0.45 ? 'var(--yellow)' : 'var(--green)';
+        const initials  = w.full_name.split(' ').slice(0,2).map(n=>n[0]).join('');
+        return `
+          <div class="worker-row">
+            <div class="worker-avatar" style="background:${tierColor}20;color:${tierColor};">${esc(initials)}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:14px;">${esc(w.full_name)}</div>
+              <div style="font-size:12px;color:var(--muted);">${esc(w.city)} · ${esc(w.platform)}</div>
+              ${w.active_tier ? `<span style="font-size:11px;color:${tierColor};font-weight:700;">${esc(w.active_tier)}</span>` : ''}
+            </div>
+            <div style="text-align:right;">
+              <div style="font-weight:700;font-size:14px;">${w.active_tier ? fmt(w.weekly_premium) : '—'}</div>
+              <div style="font-size:11px;color:${riskCol};">${(w.zone_risk_score*100).toFixed(0)}% risk</div>
+              <div style="font-size:11px;color:var(--muted);">${w.claim_history_count} claims</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Also populate legacy hidden tbody for compat
+      document.getElementById('admin-workers-tbody').innerHTML = workers.map(w => `<tr><td>${esc(w.full_name)}</td></tr>`).join('');
+    } else {
+      wrapEl.innerHTML = '<p class="text-muted text-sm" style="padding:8px 0;">No workers yet.</p>';
+    }
+
+    // City performance analytics
+    const cityEl = document.getElementById('admin-city-analytics');
+    if (cityStats && cityStats.length) {
+      cityEl.innerHTML = cityStats.map(c => {
+        const lrColor = c.loss_ratio < 65 ? 'var(--green)' : c.loss_ratio < 80 ? 'var(--yellow)' : 'var(--red)';
+        const avgScore = c.avg_authenticity_score != null ? `${c.avg_authenticity_score.toFixed(0)}` : '—';
+        return `
+          <div class="list-item">
+            <div class="list-avatar" style="width:38px;height:38px;font-size:16px;background:var(--blue-d);color:var(--blue);">🏙</div>
+            <div class="list-body">
+              <div class="list-title">${esc(c.city)}</div>
+              <div class="list-sub">${c.policies_issued} policies · ${c.claims_total} claims · Auth ${avgScore}</div>
+            </div>
+            <div class="list-right">
+              <div class="list-val" style="color:${lrColor}">${c.loss_ratio.toFixed(1)}%</div>
+              <div class="list-val-sub">loss ratio</div>
+            </div>
+          </div>`;
+      }).join('');
+    } else {
+      cityEl.innerHTML = '<p class="text-muted text-sm" style="padding:8px 0;">No city data yet. Simulate a trigger to generate claims.</p>';
+    }
+
+    // ML Fraud Model transparency
+    const mlEl = document.getElementById('admin-ml-info');
+    if (mlInfo) {
+      const topFeatures = (mlInfo.feature_importances || []).slice(0, 6);
+      const maxImp = topFeatures.length ? Math.max(...topFeatures.map(f => f.importance)) : 1;
+      mlEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <div style="font-size:32px;">🤖</div>
+          <div style="flex:1;">
+            <div style="font-weight:700;font-size:14px;">${mlInfo.model_type}</div>
+            <div style="font-size:12px;color:var(--muted);">${mlInfo.n_estimators} trees · ${mlInfo.training_samples.toLocaleString()} training samples</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:24px;font-weight:800;color:var(--green);">${(mlInfo.validation_accuracy*100).toFixed(1)}%</div>
+            <div style="font-size:11px;color:var(--muted);">val accuracy</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;">Feature Importances</div>
+        ${topFeatures.map(f => `
+          <div style="margin-bottom:9px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+              <span style="color:var(--text);">${f.feature}</span>
+              <span style="color:var(--muted);">${(f.importance*100).toFixed(1)}%</span>
+            </div>
+            <div style="height:4px;background:var(--card3);border-radius:4px;overflow:hidden;">
+              <div style="height:4px;background:linear-gradient(90deg,var(--orange),var(--purple));border-radius:4px;width:${(f.importance/maxImp*100).toFixed(1)}%;"></div>
+            </div>
+          </div>`).join('')}
+        <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;">
+          <span style="font-size:11px;background:var(--green-d);color:var(--green);padding:3px 10px;border-radius:50px;">≥75 → Auto-Approved</span>
+          <span style="font-size:11px;background:var(--yellow-d);color:var(--yellow);padding:3px 10px;border-radius:50px;">45–74 → Pending</span>
+          <span style="font-size:11px;background:var(--red-d);color:var(--red);padding:3px 10px;border-radius:50px;">&lt;45 → Manual Review</span>
+        </div>`;
+    } else {
+      mlEl.innerHTML = '<p class="text-muted text-sm">ML model info unavailable.</p>';
+    }
+
+    // All claims — isAdmin=true enables approve/reject buttons on reviewable claims
+    document.getElementById('admin-claims-list').innerHTML = allClaims.length ?
+      allClaims.map(c => renderClaimCard(c, true)).join('') :
+      '<p class="text-muted text-sm" style="padding:8px 0;">No claims recorded yet.</p>';
+
+  } catch(e) {
+    toast('Error loading admin data: ' + e.message, 'error');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// WHATSAPP NOTIFICATION + CONFETTI
+// ════════════════════════════════════════════════════════════════
+function showWAModal(triggerType, city, payoutAmt, claimNum) {
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  const timeLabel = `Today, ${timeStr}`;
+
+  const TRIGGER_MSGS = {
+    'Heavy Rainfall':          `🌧️ <b>Heavy Rainfall Alert!</b><br>${city} receiving heavy rain.<br>Delivery disruption expected.`,
+    'Extreme Rain / Flooding': `🌊 <b>Extreme Rain / Flooding!</b><br>${city}: Severe flooding reported.<br>Roads impassable in several zones.`,
+    'Severe Heatwave':         `🔥 <b>Severe Heatwave Warning!</b><br>${city} temp exceeding 42°C.<br>NDMA advisory issued.`,
+    'Hazardous AQI':           `🏭 <b>Hazardous AQI Alert!</b><br>${city} AQI > 400 (Severe).<br>Health emergency declared.`,
+    'Platform Outage':         `☁️ <b>Platform Outage Detected!</b><br>Delivery platform systems down.<br>Orders paused city-wide.`,
+    'Civil Disruption':        `🚨 <b>Civil Disruption Alert!</b><br>${city}: Bandh / protest reported.<br>Movement restricted in key areas.`,
+  };
+
+  document.getElementById('wa-trigger-msg').innerHTML =
+    TRIGGER_MSGS[triggerType] || `⚡ <b>${triggerType}</b> detected in ${city}.`;
+  document.getElementById('wa-payout-amt').textContent =
+    payoutAmt > 0 ? `${fmt(payoutAmt)} Auto-Credited` : 'Claim Under Review';
+  document.getElementById('wa-claim-num').textContent = claimNum || 'CLM-AUTO-XXXXXX';
+  document.getElementById('wa-time').textContent  = timeLabel;
+  document.getElementById('wa-time2').textContent = timeLabel;
+
+  document.getElementById('wa-modal-overlay').classList.remove('hidden');
+
+  if (payoutAmt > 0) launchConfetti();
+}
+
+function closeWAModal() {
+  document.getElementById('wa-modal-overlay').classList.add('hidden');
+  document.querySelectorAll('.confetti-piece').forEach(c => c.remove());
+  navTo('claims');
+}
+
+function launchConfetti() {
+  const colors = ['#25d366','#FF6B35','#3B82F6','#F59E0B','#8B5CF6','#00C853'];
+  for (let i = 0; i < 60; i++) {
+    setTimeout(() => {
+      const c = document.createElement('div');
+      c.className = 'confetti-piece';
+      c.style.cssText = `
+        left:${Math.random()*100}vw; top:-10px;
+        background:${colors[Math.floor(Math.random()*colors.length)]};
+        width:${6+Math.random()*10}px; height:${6+Math.random()*10}px;
+        animation-duration:${1.5+Math.random()*1.5}s;
+        animation-delay:${Math.random()*0.5}s;
+      `;
+      document.body.appendChild(c);
+      setTimeout(() => c.remove(), 3500);
+    }, i * 30);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// BOOT
+// ════════════════════════════════════════════════════════════════
+window.addEventListener('load', () => {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  }
+  if (authToken && currentUser) {
+    showApp();
+    const hash = location.hash.replace('#', '');
+    const validPages = ['dashboard','policy','triggers','claims','admin'];
+    if (hash && validPages.includes(hash)) navTo(hash);
+  }
+});
+
+// ESC key closes modals
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('wa-modal-overlay');
+    if (modal && !modal.classList.contains('hidden')) closeWAModal();
+  }
+});
+
+// Offline / online detection
+window.addEventListener('offline', () => toast('You are offline. Some features may not work.', 'error'));
+window.addEventListener('online', () => toast('Back online!', 'success'));
+
+// Back/forward button support
+window.addEventListener('popstate', e => {
+  if (!authToken || !currentUser) return;
+  const page = e.state?.page || 'dashboard';
+  const pageEl = document.getElementById(`page-${page}`);
+  if (!pageEl) return;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-link, .bottom-nav-item').forEach(l => l.classList.remove('active'));
+  pageEl.classList.add('active');
+  document.querySelectorAll(`[onclick="navTo('${page}')"]`).forEach(l => l.classList.add('active'));
+  if (page === 'dashboard') loadDashboard();
+  if (page === 'policy')    loadPolicyPage();
+  if (page === 'triggers')  { loadTriggerTypes(); loadTriggerEvents(); }
+  if (page === 'claims')    loadClaimsPage();
+  if (page === 'admin')     loadAdminPage();
+});
+</script>
+</body>
+</html>
