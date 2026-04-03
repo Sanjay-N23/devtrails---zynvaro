@@ -158,6 +158,18 @@ async def simulate_trigger_event(
     [DEMO] Force-fire a specific trigger in a city.
     Saves the event and auto-creates claims for all active policyholders in that city.
     """
+    valid_types = list(TRIGGERS.keys())
+    if req.trigger_type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid trigger type '{req.trigger_type}'. Must be one of: {', '.join(valid_types)}",
+        )
+    valid_cities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Pune", "Kolkata"]
+    if req.city not in valid_cities:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid city '{req.city}'. Must be one of: {', '.join(valid_cities)}",
+        )
     t = simulate_trigger(req.trigger_type, req.city)
 
     event = TriggerEvent(
