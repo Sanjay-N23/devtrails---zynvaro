@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: zynvaro-api
+    runtime: python
+    rootDir: zynvaro-app/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: "3.11.9"
