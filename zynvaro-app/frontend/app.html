@@ -17,6 +17,7 @@
 <meta property="og:description" content="Parametric insurance: get paid instantly when weather, AQI, or platform outages disrupt your deliveries.">
 <meta property="og:type" content="website">
 <link rel="preload" as="image" href="/static/Zynvaro-bg-removed.png">
+<script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
@@ -628,6 +629,53 @@ body {
 /* Level 6: label beside it */
 .hero-days-label { font-size: 12px; color: #aaaaaa; font-weight: 400; }
 
+/* ── CLAYMORPHIC ICON SYSTEM ── */
+.lucide { width: 20px; height: 20px; stroke-width: 2; }
+.clay-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 14px; background: var(--card2);
+  box-shadow: 4px 4px 10px rgba(0,0,0,0.45), -2px -2px 6px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04);
+  color: var(--muted);
+  transition: all .15s;
+}
+.clay-icon:hover { background: var(--card3); color: var(--text); }
+.clay-icon svg { width: 20px; height: 20px; }
+
+/* Sizes */
+.clay-sm { width: 36px; height: 36px; border-radius: 10px; }
+.clay-sm svg { width: 16px; height: 16px; }
+.clay-md { width: 44px; height: 44px; border-radius: 14px; }
+.clay-lg { width: 52px; height: 52px; border-radius: 16px; }
+.clay-lg svg { width: 24px; height: 24px; }
+
+/* Color variants */
+.clay-orange { background: var(--orange-d); color: var(--orange); }
+.clay-green { background: var(--green-d); color: var(--green); }
+.clay-blue { background: var(--blue-d); color: var(--blue); }
+.clay-purple { background: var(--purple-d); color: var(--purple); }
+.clay-red { background: var(--red-d); color: var(--red); }
+
+/* Quick actions claymorphic */
+.qa-icon-wrap {
+  width: 48px; height: 48px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--card2);
+  box-shadow: 4px 4px 10px rgba(0,0,0,0.5), -2px -2px 6px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.05);
+  margin-bottom: 8px;
+  transition: transform .15s, box-shadow .15s;
+}
+.qa-btn:active .qa-icon-wrap { transform: scale(0.93); box-shadow: 2px 2px 5px rgba(0,0,0,0.5), inset 0 2px 4px rgba(0,0,0,0.3); }
+.qa-icon-wrap svg { width: 22px; height: 22px; }
+.qa-icon-wrap.qi-orange { background: var(--orange-d); color: var(--orange); }
+.qa-icon-wrap.qi-blue { background: var(--blue-d); color: var(--blue); }
+.qa-icon-wrap.qi-green { background: var(--green-d); color: var(--green); }
+.qa-icon-wrap.qi-purple { background: var(--purple-d); color: var(--purple); }
+
+/* Bottom nav lucide icons */
+#bottom-nav .nav-icon { display: flex; align-items: center; justify-content: center; }
+#bottom-nav .nav-icon svg { width: 20px; height: 20px; }
+.fab-circle svg { width: 24px; height: 24px; }
+
 /* ── ACCESSIBILITY ── */
 .btn:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
 .form-input:focus-visible, .form-select:focus-visible { outline: 2px solid var(--orange); outline-offset: 1px; }
@@ -780,14 +828,14 @@ body {
       </div>
     </div>
     <div class="header-actions">
-      <button class="header-icon-btn" onclick="loadDashboard()" title="Refresh" aria-label="Refresh dashboard">🔄</button>
+      <button class="header-icon-btn" onclick="loadDashboard()" title="Refresh" aria-label="Refresh dashboard"><i data-lucide="refresh-cw"></i></button>
       <div style="position:relative;">
         <button id="nav-avatar" onclick="toggleProfileMenu()" title="Profile" aria-label="Profile menu">R</button>
         <div id="profile-menu" class="hidden" style="position:absolute;right:0;top:50px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px;min-width:180px;z-index:500;box-shadow:0 8px 32px rgba(0,0,0,.5);">
           <div style="font-weight:700;font-size:14px;margin-bottom:2px;" id="pm-name">Worker</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:12px;" id="pm-detail">City · Platform</div>
           <div style="border-top:1px solid var(--border);padding-top:10px;">
-            <button class="btn btn-danger btn-sm btn-full" onclick="logout()" style="font-size:13px;">🚪 Log Out</button>
+            <button class="btn btn-danger btn-sm btn-full" onclick="logout()" style="font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;"><i data-lucide="log-out" style="width:16px;height:16px;"></i> Log Out</button>
           </div>
         </div>
       </div>
@@ -806,7 +854,7 @@ body {
 
     <!-- WARNING BANNER (shown when unprotected + high risk) -->
     <div class="warning-banner hidden" id="dash-warning-banner">
-      <div class="wb-icon">🚨</div>
+      <div class="wb-icon"><i data-lucide="alert-triangle"></i></div>
       <div>
         <div class="wb-title">High Risk Zone — No Coverage</div>
         <div class="wb-body" id="dash-warning-body">Your zone risk is high. A trigger event today means ₹0 payout.</div>
@@ -834,19 +882,19 @@ body {
     <!-- QUICK ACTIONS (MetaMask-style squircle grid) -->
     <div class="quick-actions">
       <button class="qa-btn" onclick="navTo('policy')">
-        <span class="qa-icon">🛡️</span>
+        <div class="qa-icon-wrap qi-orange"><i data-lucide="shield"></i></div>
         <span class="qa-label">Shield</span>
       </button>
       <button class="qa-btn" onclick="navTo('triggers')">
-        <span class="qa-icon">⚡</span>
+        <div class="qa-icon-wrap qi-blue"><i data-lucide="zap"></i></div>
         <span class="qa-label">Alerts</span>
       </button>
       <button class="qa-btn" onclick="navTo('claims')">
-        <span class="qa-icon">📋</span>
+        <div class="qa-icon-wrap qi-green"><i data-lucide="file-text"></i></div>
         <span class="qa-label">Claims</span>
       </button>
       <button class="qa-btn" onclick="navTo('admin')">
-        <span class="qa-icon">📊</span>
+        <div class="qa-icon-wrap qi-purple"><i data-lucide="bar-chart-3"></i></div>
         <span class="qa-label">Stats</span>
       </button>
     </div>
@@ -1089,23 +1137,23 @@ body {
   <!-- ══════════ BOTTOM NAV ══════════ -->
   <nav id="bottom-nav">
     <button class="bottom-nav-item nav-link active" onclick="navTo('dashboard')">
-      <span class="nav-icon">⌂</span>
+      <span class="nav-icon"><i data-lucide="home"></i></span>
       <span>Home</span>
     </button>
     <button class="bottom-nav-item nav-link" onclick="navTo('policy')">
-      <span class="nav-icon">🛡️</span>
+      <span class="nav-icon"><i data-lucide="shield"></i></span>
       <span>Policy</span>
     </button>
     <button class="bottom-nav-fab nav-link" onclick="navTo('triggers')">
-      <div class="fab-circle">⚡</div>
+      <div class="fab-circle"><i data-lucide="zap"></i></div>
       <span>Triggers</span>
     </button>
     <button class="bottom-nav-item nav-link" onclick="navTo('claims')">
-      <span class="nav-icon">📋</span>
+      <span class="nav-icon"><i data-lucide="file-text"></i></span>
       <span>Claims</span>
     </button>
     <button class="bottom-nav-item nav-link" onclick="navTo('admin')">
-      <span class="nav-icon">📊</span>
+      <span class="nav-icon"><i data-lucide="bar-chart-3"></i></span>
       <span>Admin</span>
     </button>
   </nav>
@@ -1191,6 +1239,8 @@ async function api(path, opts = {}) {
   if (res.status === 204 || res.headers.get('content-length') === '0') return null;
   return res.json();
 }
+
+function refreshIcons() { if (window.lucide) lucide.createIcons(); }
 
 function esc(s) {
   const d = document.createElement('div');
@@ -1353,6 +1403,7 @@ function showApp() {
   }
 
   loadDashboard();
+  setTimeout(refreshIcons, 150);
 }
 
 function navTo(page) {
@@ -1376,6 +1427,8 @@ function navTo(page) {
   if (page === 'triggers')  { loadTriggerTypes(); loadTriggerEvents(); }
   if (page === 'claims')    loadClaimsPage();
   if (page === 'admin')     loadAdminPage();
+  // Refresh Lucide SVG icons after DOM update
+  setTimeout(refreshIcons, 150);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1460,7 +1513,7 @@ async function loadDashboard() {
       const riskScore = currentUser.zone_risk_score;
       document.getElementById('dash-risk-profile').innerHTML = `
         <div class="list-item" style="border:none;padding:0 0 12px;">
-          <div class="list-avatar" style="background:var(--orange-d);color:var(--orange);font-size:18px;">📍</div>
+          <div class="clay-icon clay-md clay-orange"><i data-lucide="map-pin"></i></div>
           <div class="list-body">
             <div class="list-title">${esc(currentUser.city)} · ${esc(currentUser.pincode)}</div>
             <div class="list-sub">${esc(currentUser.platform)} · ${esc(currentUser.shift)}</div>
@@ -1662,12 +1715,12 @@ function selectTier(tierName, quoteData) {
   document.getElementById('btn-activate-policy').textContent = `✅ Activate ${tierName}`;
 
   document.getElementById('breakdown-rows').innerHTML = `
-    <div class="breakdown-row"><span>📊 Base Premium</span><span>${fmt(quoteData.base_premium)}</span></div>
-    <div class="breakdown-row"><span>📍 Zone Risk (${(bk.zone_risk_score*100).toFixed(0)}%)</span><span class="breakdown-pos">+${fmt(bk.zone_loading_inr)}</span></div>
-    <div class="breakdown-row"><span>🌦️ Seasonal Adjustment</span><span class="${bk.seasonal_loading_inr>0?'breakdown-pos':'breakdown-neg'}">${bk.seasonal_loading_inr>0?'+':''}${fmt(bk.seasonal_loading_inr)}</span></div>
-    <div class="breakdown-row"><span>📋 Claim History (${bk.claim_history_count})</span><span class="breakdown-pos">+${fmt(bk.claim_loading_inr)}</span></div>
-    <div class="breakdown-row"><span>🏆 Streak Discount (${bk.streak_weeks} wks)</span><span class="breakdown-neg">${fmt(bk.streak_discount_inr)}</span></div>
-    <div class="breakdown-row" style="border-top:2px solid var(--orange);padding-top:12px;margin-top:4px;"><span>💰 Your Weekly Premium</span><span style="color:var(--orange)">${fmt(quoteData.weekly_premium)}</span></div>
+    <div class="breakdown-row"><span><i data-lucide="calculator" style="width:14px;height:14px;display:inline;vertical-align:-2px;margin-right:4px;"></i>Base Premium</span><span>${fmt(quoteData.base_premium)}</span></div>
+    <div class="breakdown-row"><span><i data-lucide="map-pin" style="width:14px;height:14px;display:inline;vertical-align:-2px;margin-right:4px;"></i>Zone Risk (${(bk.zone_risk_score*100).toFixed(0)}%)</span><span class="breakdown-pos">+${fmt(bk.zone_loading_inr)}</span></div>
+    <div class="breakdown-row"><span><i data-lucide="cloud-sun" style="width:14px;height:14px;display:inline;vertical-align:-2px;margin-right:4px;"></i>Seasonal Adjustment</span><span class="${bk.seasonal_loading_inr>0?'breakdown-pos':'breakdown-neg'}">${bk.seasonal_loading_inr>0?'+':''}${fmt(bk.seasonal_loading_inr)}</span></div>
+    <div class="breakdown-row"><span><i data-lucide="file-text" style="width:14px;height:14px;display:inline;vertical-align:-2px;margin-right:4px;"></i>Claim History (${bk.claim_history_count})</span><span class="breakdown-pos">+${fmt(bk.claim_loading_inr)}</span></div>
+    <div class="breakdown-row"><span><i data-lucide="trophy" style="width:14px;height:14px;display:inline;vertical-align:-2px;margin-right:4px;"></i>Streak Discount (${bk.streak_weeks} wks)</span><span class="breakdown-neg">${fmt(bk.streak_discount_inr)}</span></div>
+    <div class="breakdown-row" style="border-top:2px solid var(--orange);padding-top:12px;margin-top:4px;"><span><i data-lucide="wallet" style="width:14px;height:14px;display:inline;vertical-align:-2px;margin-right:4px;"></i>Your Weekly Premium</span><span style="color:var(--orange)">${fmt(quoteData.weekly_premium)}</span></div>
   `;
 
   document.getElementById('breakdown-explanation').innerHTML =
@@ -1863,7 +1916,7 @@ async function loadClaimsPage() {
     if (!claims.length) {
       el.innerHTML = `
         <div class="card text-center" style="padding:32px 16px;">
-          <div style="font-size:40px;margin-bottom:12px;">📭</div>
+          <div class="clay-icon clay-lg" style="margin:0 auto 12px;width:64px;height:64px;border-radius:20px;"><i data-lucide="inbox" style="width:28px;height:28px;"></i></div>
           <p style="font-weight:600;margin-bottom:6px;">No claims yet</p>
           <p class="text-muted text-sm">When a parametric trigger fires in your city,<br>a claim is auto-generated and paid instantly.</p>
           <button class="btn btn-ghost btn-sm mt-3" onclick="navTo('triggers')">
@@ -2073,7 +2126,7 @@ async function loadAdminPage() {
         const avgScore = c.avg_authenticity_score != null ? `${c.avg_authenticity_score.toFixed(0)}` : '—';
         return `
           <div class="list-item">
-            <div class="list-avatar" style="width:38px;height:38px;font-size:16px;background:var(--blue-d);color:var(--blue);">🏙</div>
+            <div class="clay-icon clay-sm clay-blue"><i data-lucide="building-2"></i></div>
             <div class="list-body">
               <div class="list-title">${esc(c.city)}</div>
               <div class="list-sub">${c.policies_issued} policies · ${c.claims_total} claims · Auth ${avgScore}</div>
@@ -2095,7 +2148,7 @@ async function loadAdminPage() {
       const maxImp = topFeatures.length ? Math.max(...topFeatures.map(f => f.importance)) : 1;
       mlEl.innerHTML = `
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-          <div style="font-size:32px;">🤖</div>
+          <div class="clay-icon clay-lg clay-purple"><i data-lucide="brain"></i></div>
           <div style="flex:1;">
             <div style="font-weight:700;font-size:14px;">${mlInfo.model_type}</div>
             <div style="font-size:12px;color:var(--muted);">${mlInfo.n_estimators} trees · ${mlInfo.training_samples.toLocaleString()} training samples</div>
@@ -2197,6 +2250,8 @@ window.addEventListener('load', () => {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/static/sw.js').catch(() => {});
   }
+  // Initialize Lucide SVG icons on first load
+  refreshIcons();
   if (authToken && currentUser) {
     showApp();
     const hash = location.hash.replace('#', '');
