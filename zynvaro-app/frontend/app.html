@@ -834,7 +834,7 @@ body {
     <!-- QUICK ACTIONS (MetaMask-style squircle grid) -->
     <div class="quick-actions">
       <button class="qa-btn" onclick="navTo('policy')">
-        <span class="qa-icon">🛡</span>
+        <span class="qa-icon">🛡️</span>
         <span class="qa-label">Shield</span>
       </button>
       <button class="qa-btn" onclick="navTo('triggers')">
@@ -1093,7 +1093,7 @@ body {
       <span>Home</span>
     </button>
     <button class="bottom-nav-item nav-link" onclick="navTo('policy')">
-      <span class="nav-icon">🛡</span>
+      <span class="nav-icon">🛡️</span>
       <span>Policy</span>
     </button>
     <button class="bottom-nav-fab nav-link" onclick="navTo('triggers')">
@@ -1187,6 +1187,8 @@ async function api(path, opts = {}) {
     const err = await res.json().catch(() => ({ detail: 'Request failed' }));
     throw new Error(err.detail || 'Request failed');
   }
+  // 204 No Content has no body — return null instead of crashing on json()
+  if (res.status === 204 || res.headers.get('content-length') === '0') return null;
   return res.json();
 }
 

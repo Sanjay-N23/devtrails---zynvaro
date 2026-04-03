@@ -192,17 +192,25 @@ class TestSimulateTrigger:
         )
         assert resp.status_code == 401
 
-    def test_simulate_unknown_trigger_type_still_returns_201(self, authed_client):
+    def test_simulate_unknown_trigger_type_returns_400(self, authed_client):
         """
-        simulate_trigger() falls back to value=100.0 for unknown types.
-        The endpoint should still succeed (no server-side enum validation).
+        Unknown trigger types are now rejected with 400 (input validation added).
         """
         resp = authed_client.post(
             "/triggers/simulate",
             json={"trigger_type": "Unknown Event", "city": "Bangalore"},
         )
-        # FastAPI does not validate trigger_type against an enum — still 201
-        assert resp.status_code == 201
+        assert resp.status_code == 400
+        assert "Invalid trigger type" in resp.json()["detail"]
+
+    def test_simulate_unknown_city_returns_400(self, authed_client):
+        """Unknown cities are rejected with 400."""
+        resp = authed_client.post(
+            "/triggers/simulate",
+            json={"trigger_type": "Heavy Rainfall", "city": "Jaipur"},
+        )
+        assert resp.status_code == 400
+        assert "Invalid city" in resp.json()["detail"]
 
 
 # ===========================================================================
