@@ -212,9 +212,11 @@ body {
   width: 44px; height: 44px; border-radius: 50%;
   background: var(--card2); border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px; transition: background .15s;
+  font-size: 16px; transition: background .15s, color .15s;
+  color: var(--muted);
 }
-.header-icon-btn:active { background: var(--card3); }
+.header-icon-btn:hover { color: var(--text); background: var(--card3); }
+.header-icon-btn:active { background: var(--card3); color: var(--text); }
 #nav-avatar {
   width: 44px; height: 44px; border-radius: 50%;
   background: var(--orange); display: flex; align-items: center; justify-content: center;
@@ -454,7 +456,15 @@ body {
 
 /* ── CLAIM CARDS ── */
 .claim-card {
-  background: var(--card); border-radius: var(--r); padding: 16px; margin-bottom: 10px;
+  background: var(--card); border-radius: var(--r); padding: 14px; margin-bottom: 8px;
+}
+.claim-info-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px;
+  font-size: 13px; margin-top: 8px;
+}
+.claim-flags {
+  font-size: 11px; color: var(--yellow); margin-top: 6px;
+  line-height: 1.4; opacity: 0.85;
 }
 /* Level 6: status badge — 11px Medium with semantic color override */
 .claim-status-badge {
@@ -628,6 +638,18 @@ body {
 .hero-days-num { font-size: 22px; font-weight: 700; color: var(--green); font-variant-numeric: tabular-nums; }
 /* Level 6: label beside it */
 .hero-days-label { font-size: 12px; color: #aaaaaa; font-weight: 400; }
+
+/* ── NARRATIVE TRUNCATION ── */
+.narrative-text {
+  font-size: 13px; line-height: 1.6; color: var(--muted);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden; transition: all .2s;
+}
+.narrative-text.expanded { -webkit-line-clamp: unset; }
+.read-more-btn {
+  font-size: 12px; color: var(--orange); background: none; border: none;
+  cursor: pointer; padding: 4px 0; font-weight: 600; font-family: var(--font);
+}
 
 /* ── CLAYMORPHIC ICON SYSTEM ── */
 .lucide { width: 20px; height: 20px; stroke-width: 2; }
@@ -1591,7 +1613,8 @@ async function loadRiskNarrative() {
         <span style="font-size:12px;font-weight:700;color:var(--text);">AI Risk Analysis</span>
         ${badge}
       </div>
-      <p style="font-size:13px;line-height:1.65;color:var(--muted);">${rp.narrative}</p>
+      <p class="narrative-text" id="risk-narrative-text">${rp.narrative}</p>
+      <button class="read-more-btn" onclick="document.getElementById('risk-narrative-text').classList.toggle('expanded'); this.textContent = this.textContent === 'Read more' ? 'Show less' : 'Read more';">Read more</button>
       ${keyRisks}
       ${seasonAlert}
       ${tierTip}
@@ -1973,28 +1996,25 @@ function renderClaimCard(c, isAdmin = false) {
 
   return `
     <div class="claim-card ${c.paid_at ? 'payout-success' : ''}" id="claim-card-${c.id}">
-      <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center gap-2">
-          <div class="list-avatar" style="width:38px;height:38px;font-size:17px;background:var(--card2);">
-            ${triggerIcon(c.trigger_type || '⚡')}
-          </div>
-          <div>
-            <div class="list-title" style="font-size:13px;">${esc(c.trigger_type || 'Disruption')}</div>
-            <div class="text-xs text-muted">#${esc(c.claim_number)}</div>
-          </div>
+      <div class="flex items-center gap-2" style="margin-bottom:8px;">
+        <div class="list-avatar" style="width:34px;height:34px;font-size:15px;background:var(--card2);">
+          ${triggerIcon(c.trigger_type || '⚡')}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;">${esc(c.trigger_type || 'Disruption')}</div>
+          <div class="text-xs text-muted">#${esc(c.claim_number)} · ${timeAgo(c.created_at)}</div>
         </div>
         <span class="claim-status-badge ${statusClass}">${c.status.replace(/_/g,' ').toUpperCase()}</span>
       </div>
 
-      <div class="flex gap-4" style="flex-wrap:wrap;font-size:13px;margin-top:10px;">
-        <div>Payout: <b class="text-green">${fmt(c.payout_amount)}</b></div>
-        <div>City: <b>${esc(c.trigger_city || '—')}</b></div>
-        <div class="text-muted">${timeAgo(c.created_at)}</div>
+      <div class="claim-info-grid">
+        <div>Payout <b class="text-green">${fmt(c.payout_amount)}</b></div>
+        <div>City <b>${esc(c.trigger_city || '—')}</b></div>
       </div>
 
-      <div class="mt-2">
-        <div class="flex justify-between text-xs mb-1">
-          <span class="text-muted">Authenticity Score</span>
+      <div style="margin-top:6px;">
+        <div class="flex justify-between text-xs" style="margin-bottom:3px;">
+          <span class="text-muted">Auth Score</span>
           <span style="color:${sc};font-weight:700;">${fmtScore(c.authenticity_score)}</span>
         </div>
         <div class="score-bar">
@@ -2002,16 +2022,13 @@ function renderClaimCard(c, isAdmin = false) {
         </div>
       </div>
 
-      ${c.paid_at ? `<div class="text-xs text-green mt-2">✅ Paid ${timeAgo(c.paid_at)} · Ref: ${esc(c.payment_ref || 'MOCK-UPI')}</div>` : ''}
-      ${c.fraud_flags ? `<div class="text-xs mt-1" style="color:var(--yellow);">⚠️ ${esc(c.fraud_flags)}</div>` : ''}
+      ${c.paid_at ? `<div class="text-xs text-green" style="margin-top:6px;">Paid ${timeAgo(c.paid_at)} · ${esc(c.payment_ref || 'UPI')}</div>` : ''}
+      ${c.fraud_flags ? `<div class="claim-flags">${esc(c.fraud_flags)}</div>` : ''}
 
       ${reviewable ? `
-        <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:12px;">
-          <div class="text-xs text-muted" style="margin-bottom:8px;">⚖️ Review fraud flags above, then authorize or deny this payout:</div>
-          <div class="flex gap-2">
-            <button class="btn btn-success btn-sm" style="flex:1;" onclick="adminApproveClaim(${c.id})">✅ Authorize Payout</button>
-            <button class="btn btn-danger btn-sm" style="flex:1;" onclick="adminRejectClaim(${c.id})">❌ Deny Claim</button>
-          </div>
+        <div class="flex gap-2" style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+          <button class="btn btn-success btn-sm" style="flex:1;padding:7px 12px;font-size:12px;" onclick="adminApproveClaim(${c.id})">Approve</button>
+          <button class="btn btn-danger btn-sm" style="flex:1;padding:7px 12px;font-size:12px;" onclick="adminRejectClaim(${c.id})">Deny</button>
         </div>` : ''}
     </div>
   `;
