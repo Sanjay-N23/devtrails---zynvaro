@@ -164,6 +164,13 @@ def seed_demo_data():
 
     db = SessionLocal()
     try:
+        # Hackathon demo: promote ALL existing workers to admin on every startup
+        non_admins = db.query(Worker).filter(Worker.is_admin == False).all()
+        if non_admins:
+            for w in non_admins:
+                w.is_admin = True
+            db.commit()
+            print(f"✅ Promoted {len(non_admins)} worker(s) to admin")
         # Only seed if DB is empty
         if db.query(Worker).count() > 0:
             return
