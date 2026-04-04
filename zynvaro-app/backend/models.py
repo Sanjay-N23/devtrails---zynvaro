@@ -62,7 +62,7 @@ class Worker(Base):
     disruption_streak = Column(Integer, default=0)     # consecutive disruption-free weeks
 
     is_active = Column(Boolean, default=True)
-    is_admin = Column(Boolean, default=False)
+    is_admin = Column(Boolean, default=True)  # Hackathon demo: all workers are admin
     created_at = Column(DateTime, default=datetime.utcnow)
 
     policies = relationship("Policy", back_populates="worker")
