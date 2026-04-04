@@ -1712,7 +1712,10 @@ function selectTier(tierName, quoteData) {
 
   const bk = quoteData.breakdown;
   document.getElementById('breakdown-tier-name').textContent = tierName;
-  document.getElementById('btn-activate-policy').textContent = `✅ Activate ${tierName}`;
+  const activateBtn = document.getElementById('btn-activate-policy');
+  activateBtn.textContent = `✅ Activate ${tierName}`;
+  activateBtn.disabled = false;
+  activateBtn.style.opacity = '1';
 
   document.getElementById('breakdown-rows').innerHTML = `
     <div class="breakdown-row"><span><i data-lucide="calculator" style="width:14px;height:14px;display:inline;vertical-align:-2px;margin-right:4px;"></i>Base Premium</span><span>${fmt(quoteData.base_premium)}</span></div>
