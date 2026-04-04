@@ -1925,13 +1925,19 @@ async function loadClaimsPage() {
     if (!claims.length) {
       el.innerHTML = `
         <div class="card text-center" style="padding:32px 16px;">
-          <div class="clay-icon clay-lg" style="margin:0 auto 12px;width:64px;height:64px;border-radius:20px;"><i data-lucide="inbox" style="width:28px;height:28px;"></i></div>
-          <p style="font-weight:600;margin-bottom:6px;">No claims yet</p>
-          <p class="text-muted text-sm">When a parametric trigger fires in your city,<br>a claim is auto-generated and paid instantly.</p>
-          <button class="btn btn-ghost btn-sm mt-3" onclick="navTo('triggers')">
-            ⚡ Simulate a Trigger
+          <div class="clay-icon" style="margin:0 auto 16px;width:72px;height:72px;border-radius:20px;background:var(--card3);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline>
+              <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
+            </svg>
+          </div>
+          <p style="font-weight:600;margin-bottom:6px;font-size:16px;">No claims yet</p>
+          <p class="text-muted text-sm" style="line-height:1.5;">When a parametric trigger fires in your city,<br>a claim is auto-generated and paid instantly.</p>
+          <button class="btn btn-ghost btn-sm mt-3" style="display:inline-flex;align-items:center;gap:6px;" onclick="navTo('triggers')">
+            <i data-lucide="zap" style="width:14px;height:14px;"></i> Simulate a Trigger
           </button>
         </div>`;
+      setTimeout(refreshIcons, 50);
       return;
     }
     el.innerHTML = claims.map(c => renderClaimCard(c)).join('');
