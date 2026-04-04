@@ -1774,10 +1774,11 @@ async function cancelPolicy() {
     await api(`/policies/${activePolicyData.id}`, { method: 'DELETE' });
     toast('Policy cancelled.', 'info');
     activePolicyData = null;
-    loadPolicyPage();
   } catch(e) {
     toast(e.message, 'error');
   }
+  // Always refresh — sync UI with actual server state even on error
+  loadPolicyPage();
 }
 
 async function renewPolicy() {
@@ -1785,10 +1786,11 @@ async function renewPolicy() {
   try {
     const data = await api('/policies/renew', { method: 'POST' });
     toast(`Policy renewed! New expiry: ${new Date(data.end_date).toLocaleDateString('en-IN')}`, 'success');
-    loadPolicyPage();
   } catch(e) {
     toast(e.message || 'Renewal failed', 'error');
   }
+  // Always refresh — sync UI with actual server state even on error
+  loadPolicyPage();
 }
 
 // ════════════════════════════════════════════════════════════════
