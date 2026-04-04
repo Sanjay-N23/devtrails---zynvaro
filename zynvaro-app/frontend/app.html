@@ -639,6 +639,33 @@ body {
 /* Level 6: label beside it */
 .hero-days-label { font-size: 12px; color: #aaaaaa; font-weight: 400; }
 
+/* ── INFO TOOLTIP ── */
+.info-tip {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%; background: var(--card3);
+  color: var(--muted); font-size: 11px; font-weight: 700; cursor: help;
+  font-family: var(--font); vertical-align: middle; margin-left: 6px;
+  border: 1px solid var(--border); flex-shrink: 0;
+}
+.info-tip:hover { color: var(--text); background: var(--card2); border-color: var(--orange); }
+.info-tip .tip-text {
+  display: none; position: absolute; bottom: calc(100% + 8px); left: 50%;
+  transform: translateX(-50%); width: 260px; padding: 10px 12px;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 400; line-height: 1.5; color: var(--muted);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 100; pointer-events: none;
+  text-align: left;
+}
+.info-tip .tip-text::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 6px solid transparent; border-top-color: var(--border);
+}
+.info-tip:hover .tip-text { display: block; }
+@media (max-width: 480px) {
+  .info-tip .tip-text { width: 220px; left: auto; right: -10px; transform: none; }
+  .info-tip .tip-text::after { left: auto; right: 16px; }
+}
+
 /* ── NARRATIVE TRUNCATION ── */
 .narrative-text {
   font-size: 13px; line-height: 1.6; color: var(--muted);
@@ -1017,6 +1044,7 @@ body {
       <div class="section-hd" style="margin-bottom:8px;">
         Simulate Trigger
         <span style="font-size:11px;color:var(--blue);background:var(--blue-d);padding:3px 9px;border-radius:var(--r-pill);font-weight:700;">DEMO</span>
+        <span class="info-tip">i<span class="tip-text">In production, triggers fire autonomously every 15 min via live APIs (OpenWeatherMap, WAQI, GDELT, HTTP probes). This button simulates the same end-to-end pipeline for demonstration.</span></span>
       </div>
       <p class="text-sm text-muted mb-3">Force-fire a trigger to see zero-touch claims in action.</p>
       <div class="form-group">
@@ -1045,7 +1073,7 @@ body {
 
     <!-- Monitored Types -->
     <div class="card">
-      <div class="section-hd">Monitored Types</div>
+      <div class="section-hd">Monitored Types <span class="info-tip">i<span class="tip-text">6 parametric triggers monitored via real public APIs: OpenWeatherMap (rain/heat), WAQI (air quality), HTTP HEAD probes (platform uptime), GDELT Project (civil disruption news). Thresholds based on IMD/NAQI standards.</span></span></div>
       <div id="trigger-types-list">
         <p class="text-muted text-sm">Loading...</p>
       </div>
@@ -1110,7 +1138,7 @@ body {
     </div>
 
     <div class="card">
-      <div class="section-hd">Loss Ratio</div>
+      <div class="section-hd">Loss Ratio <span class="info-tip">i<span class="tip-text">Payouts ÷ Premiums collected. Target &lt; 65%. Phase 3: ML regression model predicts next week's loss ratio from 8-week historical trends.</span></span></div>
       <div class="gauge-wrap">
         <div class="gauge-value" id="loss-ratio-val">—%</div>
         <div class="gauge-label">Target &lt; 65% · Current loss ratio</div>
@@ -1142,7 +1170,7 @@ body {
     </div>
 
     <div class="card">
-      <div class="section-hd">ML Fraud Model · Transparency</div>
+      <div class="section-hd">ML Fraud Model · Transparency <span class="info-tip">i<span class="tip-text">200-tree RandomForest trained on synthetic claims data. Rule-based score drives decisions (auditability). ML score augments with pattern detection. Phase 3: GPS shift-time validation + historical anomaly clustering.</span></span></div>
       <div id="admin-ml-info">
         <p class="text-muted text-sm">Loading...</p>
       </div>
@@ -1584,7 +1612,7 @@ async function loadRiskNarrative() {
 
     const badge = rp.llm_powered
       ? `<span style="font-size:10px;background:var(--purple-d);color:var(--purple);padding:2px 8px;border-radius:50px;font-weight:700;white-space:nowrap;">✨ Claude AI</span>`
-      : `<span style="font-size:10px;background:var(--card3);color:var(--muted);padding:2px 8px;border-radius:50px;white-space:nowrap;">Rule-based</span>`;
+      : `<span style="font-size:10px;background:var(--card3);color:var(--muted);padding:2px 8px;border-radius:50px;white-space:nowrap;">Rule-based</span> <span class="info-tip" style="width:16px;height:16px;font-size:9px;">i<span class="tip-text">Currently using rule-based template narratives. Phase 3: Connect Anthropic Claude API for AI-generated personalized risk explanations per worker.</span></span>`;
 
     const keyRisks = (rp.key_risks || []).length
       ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">
