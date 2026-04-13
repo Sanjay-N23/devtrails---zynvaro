@@ -61,6 +61,19 @@ class Worker(Base):
     claim_history_count = Column(Integer, default=0)
     disruption_streak = Column(Integer, default=0)     # consecutive disruption-free weeks
 
+    # GPS / Location (Advanced Fraud Detection — Phase 3)
+    last_known_lat = Column(Float, nullable=True)       # Last GPS latitude
+    last_known_lng = Column(Float, nullable=True)       # Last GPS longitude
+    last_location_at = Column(DateTime, nullable=True)  # When GPS was captured
+    home_lat = Column(Float, nullable=True)             # Registered home lat (from pincode)
+    home_lng = Column(Float, nullable=True)             # Registered home lng (from pincode)
+
+    # Behavioral profile (Advanced Fraud Detection — Phase 3)
+    avg_claims_per_week = Column(Float, default=0.0)    # Rolling average
+    last_claim_city = Column(String(50), nullable=True) # City of most recent claim
+    last_claim_at = Column(DateTime, nullable=True)     # Timestamp of most recent claim
+    fraud_flag_count = Column(Integer, default=0)       # Cumulative fraud flags received
+
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=True)  # Hackathon demo: all workers are admin
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -122,6 +135,10 @@ class TriggerEvent(Base):
     severity = Column(String(20), default="moderate")  # low / moderate / high / extreme
     description = Column(Text, nullable=True)
 
+    # Trigger zone GPS (Advanced Fraud Detection — Phase 3)
+    trigger_lat = Column(Float, nullable=True)          # Trigger zone center latitude
+    trigger_lng = Column(Float, nullable=True)          # Trigger zone center longitude
+
     detected_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=True)
 
@@ -149,6 +166,18 @@ class Claim(Base):
     device_valid = Column(Boolean, default=False)
     cross_source_valid = Column(Boolean, default=False)
     fraud_flags = Column(Text, nullable=True)
+
+    # GPS at claim time (Advanced Fraud Detection — Phase 3)
+    claim_lat = Column(Float, nullable=True)            # Worker GPS at claim creation
+    claim_lng = Column(Float, nullable=True)            # Worker GPS at claim creation
+    gps_distance_km = Column(Float, nullable=True)      # Distance from trigger zone (km)
+
+    # Advanced fraud metadata (Phase 3)
+    ml_fraud_probability = Column(Float, nullable=True) # Raw ML probability (0-1)
+    risk_tier = Column(String(20), nullable=True)       # LOW / MEDIUM / HIGH / CRITICAL
+    shift_valid = Column(Boolean, default=True)         # Claim within declared shift hours
+    weather_cross_valid = Column(Boolean, default=True) # Historical weather confirms trigger
+    velocity_valid = Column(Boolean, default=True)      # No impossible travel detected
 
     # Payout
     upi_id = Column(String(50), nullable=True)

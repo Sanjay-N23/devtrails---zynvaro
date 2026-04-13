@@ -26,6 +26,10 @@ from datetime import datetime, timedelta
 #    instead of generating a random key that won't match test tokens. ──────
 os.environ.setdefault("SECRET_KEY", "zynvaro-secret-2026-hackathon-key")
 
+# ── Disable Razorpay in tests — always use mock payouts ──────────
+os.environ["RAZORPAY_KEY_ID"] = ""
+os.environ["RAZORPAY_KEY_SECRET"] = ""
+
 # ── Make sure the backend package root is on sys.path so that relative
 #    imports inside database.py, models.py, routers/, etc. resolve
 #    correctly when pytest is invoked from any working directory. ──────

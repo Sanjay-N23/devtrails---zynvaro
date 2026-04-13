@@ -11,5 +11,6 @@ httpx
 python-dotenv
 apscheduler
 anthropic
+razorpay
 pytest
 pytest-asyncio

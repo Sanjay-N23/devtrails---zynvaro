@@ -107,6 +107,9 @@ async def live_check(
         if recent:
             continue
 
+        # Get trigger zone GPS coordinates (Phase 3)
+        from services.fraud_engine import get_city_center
+        _city_geo = get_city_center(city)
         event = TriggerEvent(
             trigger_type=t["trigger_type"],
             city=t["city"],
@@ -120,6 +123,8 @@ async def live_check(
             description=t["description"],
             detected_at=datetime.fromisoformat(t["detected_at"]),
             expires_at=datetime.fromisoformat(t["expires_at"]),
+            trigger_lat=_city_geo["lat"] if _city_geo else None,
+            trigger_lng=_city_geo["lng"] if _city_geo else None,
         )
         db.add(event)
         db.commit()
@@ -172,6 +177,9 @@ async def simulate_trigger_event(
         )
     t = simulate_trigger(req.trigger_type, req.city)
 
+    # Get trigger zone GPS coordinates (Phase 3)
+    from services.fraud_engine import get_city_center
+    _sim_geo = get_city_center(req.city)
     event = TriggerEvent(
         trigger_type=t["trigger_type"],
         city=t["city"],
@@ -185,6 +193,8 @@ async def simulate_trigger_event(
         description=t["description"],
         detected_at=datetime.utcnow(),
         expires_at=datetime.utcnow() + timedelta(hours=6),
+        trigger_lat=_sim_geo["lat"] if _sim_geo else None,
+        trigger_lng=_sim_geo["lng"] if _sim_geo else None,
     )
     db.add(event)
     db.commit()
@@ -287,13 +297,32 @@ def _auto_generate_claims(event_id: int, city: str, trigger_type: str, db: Sessi
                 Claim.created_at >= (datetime.utcnow() - timedelta(days=7))
             ).count()
 
-            # Fraud scoring
+            # Simulate worker GPS (home coords ± small jitter for realism)
+            import random as _rnd
+            claim_lat = None
+            claim_lng = None
+            if worker.home_lat is not None and worker.home_lng is not None:
+                claim_lat = worker.home_lat + _rnd.uniform(-0.01, 0.01)  # ±1km jitter
+                claim_lng = worker.home_lng + _rnd.uniform(-0.01, 0.01)
+            elif worker.last_known_lat is not None:
+                claim_lat = worker.last_known_lat + _rnd.uniform(-0.01, 0.01)
+                claim_lng = worker.last_known_lng + _rnd.uniform(-0.01, 0.01)
+
+            # Advanced fraud scoring (Phase 3: 6-module engine + 14-feature ML)
             fraud = compute_authenticity_score(
                 worker_city=worker.city,
                 trigger_city=city,
                 claim_history=worker.claim_history_count,
                 same_week_claims=same_week_count,
                 device_attested=True,
+                trigger_type=trigger_type,
+                payout_amount=payout,
+                disruption_streak=worker.disruption_streak or 0,
+                worker=worker,
+                trigger_event=event,
+                claim_lat=claim_lat,
+                claim_lng=claim_lng,
+                db=db,
             )
 
             # AUTO_APPROVED claims are paid immediately (payment ref + timestamp set in
@@ -307,7 +336,6 @@ def _auto_generate_claims(event_id: int, city: str, trigger_type: str, db: Sessi
 
             claim_num = "CLM-" + ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
             is_auto_approved = fraud["decision"] == "AUTO_APPROVED"
-            paid_at = datetime.utcnow() if is_auto_approved else None
 
             claim = Claim(
                 claim_number=claim_num,
@@ -323,14 +351,39 @@ def _auto_generate_claims(event_id: int, city: str, trigger_type: str, db: Sessi
                 cross_source_valid=fraud["cross_source_valid"],
                 fraud_flags="; ".join(fraud["flags"]) if fraud["flags"] else None,
                 auto_processed=True,
-                paid_at=paid_at,
-                payment_ref=f"MOCK-UPI-{claim_num}" if paid_at else None,
+                # Phase 3 advanced fraud metadata
+                claim_lat=fraud.get("claim_lat"),
+                claim_lng=fraud.get("claim_lng"),
+                gps_distance_km=fraud.get("gps_distance_km"),
+                ml_fraud_probability=fraud.get("ml_fraud_probability"),
+                risk_tier=fraud.get("risk_tier"),
+                shift_valid=fraud.get("shift_valid", True),
+                weather_cross_valid=fraud.get("weather_cross_valid", True),
+                velocity_valid=fraud.get("velocity_valid", True),
             )
             db.add(claim)
+            db.flush()  # Get claim.id for payout transaction
+
+            # Phase 3: Razorpay payout (or mock fallback)
+            if is_auto_approved:
+                try:
+                    from services.payout_service import initiate_payout
+                    initiate_payout(claim, worker, db)
+                except Exception as e:
+                    # Fallback: mark paid with mock ref if payout service fails
+                    claim.paid_at = datetime.utcnow()
+                    claim.payment_ref = f"MOCK-UPI-{claim_num}"
+                    print(f"[Payout] Service error, using mock: {e}")
 
             # Update worker risk profile
             worker.claim_history_count = Worker.claim_history_count + 1
             worker.disruption_streak = 0  # reset streak — a claim event breaks the clean run
+
+            # Update worker behavioral profile (Phase 3)
+            worker.last_claim_city = city
+            worker.last_claim_at = datetime.utcnow()
+            if fraud["flags"]:
+                worker.fraud_flag_count = (worker.fraud_flag_count or 0) + len(fraud["flags"])
             claims_created += 1
 
         db.commit()

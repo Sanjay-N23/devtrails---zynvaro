@@ -289,3 +289,51 @@ def test_non_admin_forbidden_cities(client, make_worker):
     token = worker_token(worker.id)
     resp = client.get("/analytics/cities", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 403
+
+
+# ─── Forecast Endpoint Tests (Phase 3: Predictive Analytics) ─────
+
+def test_forecast_returns_200(authed_client):
+    resp = authed_client.get("/analytics/forecast")
+    assert resp.status_code == 200
+
+
+def test_forecast_has_required_fields(authed_client):
+    data = authed_client.get("/analytics/forecast").json()
+    for key in ["forecast_week", "predicted_loss_ratio", "predicted_claims",
+                "predicted_payouts_inr", "confidence_interval", "seasonal_factor",
+                "trigger_risk_forecast", "city_risk_forecast", "historical_trend",
+                "method", "data_points_used"]:
+        assert key in data, f"Missing key: {key}"
+
+
+def test_forecast_loss_ratio_non_negative(authed_client):
+    data = authed_client.get("/analytics/forecast").json()
+    assert data["predicted_loss_ratio"] >= 0
+
+
+def test_forecast_confidence_interval_is_pair(authed_client):
+    data = authed_client.get("/analytics/forecast").json()
+    ci = data["confidence_interval"]
+    assert isinstance(ci, list) and len(ci) == 2
+    assert ci[0] <= ci[1]
+
+
+def test_forecast_city_risk_has_7_cities(authed_client):
+    data = authed_client.get("/analytics/forecast").json()
+    cities = [c["city"] for c in data["city_risk_forecast"]]
+    assert len(cities) == 7
+    for city in ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Pune", "Kolkata"]:
+        assert city in cities
+
+
+def test_forecast_city_filter(authed_client):
+    data = authed_client.get("/analytics/forecast?city=Mumbai").json()
+    assert data["forecast_week"] > 0
+
+
+def test_forecast_non_admin_forbidden(client, make_worker):
+    worker = make_worker(is_admin=False)
+    token = worker_token(worker.id)
+    resp = client.get("/analytics/forecast", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 403

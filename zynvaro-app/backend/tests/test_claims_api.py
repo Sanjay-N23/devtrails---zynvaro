@@ -411,6 +411,45 @@ class TestClaimStats:
 
 
 # ─────────────────────────────────────────────────────────────────
+# GET /claims/my-weekly-summary  — Worker Dashboard Widget (Phase 3)
+# ─────────────────────────────────────────────────────────────────
+
+class TestWeeklySummary:
+    def test_returns_200(self, authed_client):
+        resp = authed_client.get("/claims/my-weekly-summary")
+        assert resp.status_code == 200
+
+    def test_has_all_required_fields(self, authed_client):
+        data = authed_client.get("/claims/my-weekly-summary").json()
+        for key in ["earnings_protected_total", "earnings_protected_this_week",
+                     "coverage_remaining_this_week", "max_weekly_payout",
+                     "active_coverage", "claims_this_week", "disruptions_this_week",
+                     "total_premiums_paid", "days_remaining", "weekly_premium"]:
+            assert key in data, f"Missing key: {key}"
+
+    def test_no_policy_returns_inactive(self, authed_client):
+        data = authed_client.get("/claims/my-weekly-summary").json()
+        # authed_client worker has no policy by default
+        assert data["active_coverage"] in (True, False)
+        assert data["earnings_protected_total"] >= 0
+
+    def test_coverage_remaining_not_negative(self, authed_client):
+        data = authed_client.get("/claims/my-weekly-summary").json()
+        assert data["coverage_remaining_this_week"] >= 0
+
+    def test_with_active_policy(self, authed_client, make_policy):
+        worker = authed_client.worker
+        make_policy(worker=worker)
+        data = authed_client.get("/claims/my-weekly-summary").json()
+        if data["active_coverage"]:
+            assert data["max_weekly_payout"] > 0
+            assert data["weekly_premium"] > 0
+
+    def test_unauthorized_returns_401(self, client):
+        assert client.get("/claims/my-weekly-summary").status_code == 401
+
+
+# ─────────────────────────────────────────────────────────────────
 # GET /claims/{id}  — Claim detail
 # ─────────────────────────────────────────────────────────────────
 

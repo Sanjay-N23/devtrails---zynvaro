@@ -245,9 +245,9 @@ class TestSimulateTrigger(unittest.TestCase):
                     f"{t!r} should not fall back to 100.0",
                 )
 
-    def test_description_contains_demo_prefix(self):
+    def test_description_contains_simulated_prefix(self):
         result = simulate_trigger("Severe Heatwave", "Delhi")
-        self.assertIn("[DEMO]", result["description"])
+        self.assertIn("Simulated", result["description"])
 
     def test_description_contains_trigger_type(self):
         result = simulate_trigger("Platform Outage", "Mumbai")
@@ -261,9 +261,9 @@ class TestSimulateTrigger(unittest.TestCase):
         result = simulate_trigger("Volcanic Eruption", "Bangalore")
         self.assertEqual(result["measured_value"], 100.0)
 
-    def test_unknown_trigger_type_description_has_demo_prefix(self):
+    def test_unknown_trigger_type_description_has_simulated_prefix(self):
         result = simulate_trigger("Volcanic Eruption", "Bangalore")
-        self.assertIn("[DEMO]", result["description"])
+        self.assertIn("Simulated", result["description"])
 
     def test_returns_all_required_trigger_keys(self):
         result = simulate_trigger("Heavy Rainfall", "Mumbai")

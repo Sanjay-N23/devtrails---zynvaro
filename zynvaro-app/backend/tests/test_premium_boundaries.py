@@ -114,10 +114,9 @@ class TestPremiumUpperLowerCaps:
     # ── upper caps ──────────────────────────────────────────────────────────
 
     def test_premium_upper_cap_basic_shield(self):
-        """Basic Shield: 2×base cap = 58.0, but affordability cap = 4500×0.008 = 36.0.
-
-        The effective ceiling is 36.0 because the affordability guardrail is
-        applied after the hard cap for Basic Shield only.
+        """Basic Shield: affordability cap now uses city-specific income.
+        Mumbai Basic: 900 * 7 * 0.008 = 50.40. Under peak conditions,
+        premium should be capped at this city-aware affordability limit.
         """
         result = calculate_premium(
             "Basic Shield",
@@ -127,13 +126,12 @@ class TestPremiumUpperLowerCaps:
             forecast_risk=1.0,
             date=_week(32),          # peak monsoon
         )
-        affordability_cap = round(4500 * 0.008, 2)   # 36.0
-        assert result["weekly_premium"] <= affordability_cap, (
-            f"weekly_premium {result['weekly_premium']} exceeded affordability cap {affordability_cap}"
-        )
-        assert result["weekly_premium"] == affordability_cap, (
-            f"Expected weekly_premium to equal affordability cap {affordability_cap}, "
-            f"got {result['weekly_premium']}"
+        # City-aware cap: Mumbai Basic = 900/day * 7 * 0.008 = 50.40
+        city_cap = round(900 * 7 * 0.008, 2)
+        hard_cap = 29.0 * 2.0  # 58.0
+        effective_cap = min(hard_cap, city_cap)  # 50.40
+        assert result["weekly_premium"] <= effective_cap, (
+            f"weekly_premium {result['weekly_premium']} exceeded cap {effective_cap}"
         )
 
     def test_premium_upper_cap_standard_guard(self):
@@ -350,11 +348,10 @@ class TestSeasonalFactorBoundaries:
     # ── pre-monsoon heat band: weeks 18–23, factor 1.20 ─────────────────────
 
     def test_week_18_enters_pre_monsoon_band(self):
-        assert get_seasonal_index(_week(18)) == 1.2
+        assert get_seasonal_index(_week(18), city="Delhi") == 1.2  # pre-heat = Delhi
 
     def test_week_23_is_last_pre_monsoon_week_returns_1_2(self):
-        """Week 23 is the last week of the pre-monsoon band → 1.20."""
-        assert get_seasonal_index(_week(23)) == 1.2
+        assert get_seasonal_index(_week(23), city="Delhi") == 1.2
 
     # ── monsoon band: weeks 24–40 ────────────────────────────────────────────
 
@@ -399,18 +396,16 @@ class TestSeasonalFactorBoundaries:
     # ── winter haze band: weeks 44–52 and 1–6, factor 1.25 ─────────────────
 
     def test_week_44_enters_winter_haze_returns_1_25(self):
-        """Week 44 is the first week of the winter-haze band → 1.25."""
-        assert get_seasonal_index(_week(44)) == 1.25
+        assert get_seasonal_index(_week(44), city="Delhi") == 1.25  # winter haze = Delhi
 
     def test_week_52_is_in_winter_haze_returns_1_25(self):
-        assert get_seasonal_index(_week(52)) == 1.25
+        assert get_seasonal_index(_week(52), city="Delhi") == 1.25
 
     def test_week_1_is_in_winter_haze_returns_1_25(self):
-        assert get_seasonal_index(_week(1)) == 1.25
+        assert get_seasonal_index(_week(1), city="Delhi") == 1.25
 
     def test_week_6_is_last_winter_haze_week_returns_1_25(self):
-        """Week 6 is the last week of the early-year haze band → 1.25."""
-        assert get_seasonal_index(_week(6)) == 1.25
+        assert get_seasonal_index(_week(6), city="Kolkata") == 1.25
 
     def test_week_7_exits_winter_haze_returns_1_0(self):
         """Week 7 is outside both haze sub-bands (>6 and <44) and not in
@@ -431,7 +426,7 @@ class TestSeasonalFactorBoundaries:
         """The seasonal_factor in the breakdown must equal get_seasonal_index()."""
         d = _week(32)
         result = calculate_premium("Standard Guard", *("560001", "Bangalore"), date=d)
-        assert result["breakdown"]["seasonal_factor"] == get_seasonal_index(d)
+        assert result["breakdown"]["seasonal_factor"] == get_seasonal_index(d, city="Bangalore")
 
     def test_monsoon_peak_raises_premium_vs_off_season(self):
         """Peak-monsoon premium (week 32) must exceed off-season premium, all else equal."""

@@ -945,6 +945,50 @@ body {
       </button>
     </div>
 
+    <!-- EARNINGS PROTECTED WIDGET (Phase 3: Worker Dashboard) -->
+    <div class="card" id="earnings-widget" style="display:none;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+        <div class="clay-icon clay-lg clay-green">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Total Earnings Protected</div>
+          <div style="font-size:28px;font-weight:800;color:var(--green);" id="ew-total-protected">₹0</div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+          <span class="text-muted">Weekly Coverage Used</span>
+          <span style="font-weight:700;" id="ew-coverage-used">₹0 / ₹0</span>
+        </div>
+        <div class="score-bar" style="height:8px;">
+          <div class="score-fill" id="ew-coverage-bar" style="width:0%;background:var(--green);transition:width 0.5s;border-radius:4px;"></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px;" id="ew-coverage-remaining">₹0 remaining this week</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;">
+        <div style="text-align:center;padding:8px;background:var(--card2);border-radius:8px;">
+          <div style="font-size:18px;font-weight:800;color:var(--blue);" id="ew-claims-week">0</div>
+          <div style="font-size:10px;color:var(--muted);">Claims This Week</div>
+        </div>
+        <div style="text-align:center;padding:8px;background:var(--card2);border-radius:8px;">
+          <div style="font-size:18px;font-weight:800;color:var(--orange);" id="ew-disruptions">0</div>
+          <div style="font-size:10px;color:var(--muted);">Disruptions</div>
+        </div>
+        <div style="text-align:center;padding:8px;background:var(--card2);border-radius:8px;">
+          <div style="font-size:18px;font-weight:800;color:var(--green);" id="ew-premiums-paid">₹0</div>
+          <div style="font-size:10px;color:var(--muted);">Premiums Paid</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="earnings-widget-empty" style="display:none;text-align:center;padding:24px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 12px;display:block;opacity:0.4;"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px;">You're Not Protected Yet</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Get income insurance to protect against weather disruptions, platform outages, and civil events.</div>
+      <button class="btn btn-primary" onclick="navTo('policy')">Get Protected Now</button>
+    </div>
+
     <!-- STAT ROW -->
     <div class="stat-row">
       <div class="stat-cell">
@@ -957,7 +1001,7 @@ body {
       </div>
       <div class="stat-cell">
         <div class="val" id="stat-total-saved">₹0</div>
-        <div class="lbl">Total Received</div>
+        <div class="lbl">Total Protected</div>
       </div>
       <div class="stat-cell">
         <div class="val" id="stat-zone-risk">—</div>
@@ -1170,6 +1214,37 @@ body {
       <div class="section-hd">ML Fraud Model · Transparency <span class="info-tip">i<span class="tip-text">200-tree RandomForest trained on synthetic claims data. Rule-based score drives decisions (auditability). ML score augments with pattern detection. Phase 3: GPS shift-time validation + historical anomaly clustering.</span></span></div>
       <div id="admin-ml-info">
         <p class="text-muted text-sm">Loading...</p>
+      </div>
+    </div>
+
+    <div class="card" id="admin-forecast">
+      <div class="section-hd">Next Week Forecast <span class="info-tip">i<span class="tip-text">Predicted using 8-week EWMA (exponentially weighted moving average) + seasonal risk adjustment. Actuarial method — appropriate for short-horizon insurance forecasting with limited data. NOT a black-box ML model.</span></span></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+        <div style="text-align:center;padding:10px;background:var(--card2);border-radius:8px;">
+          <div style="font-size:24px;font-weight:800;" id="fc-loss-ratio">—</div>
+          <div style="font-size:10px;color:var(--muted);">Predicted Loss Ratio</div>
+        </div>
+        <div style="text-align:center;padding:10px;background:var(--card2);border-radius:8px;">
+          <div style="font-size:24px;font-weight:800;color:var(--blue);" id="fc-claims">—</div>
+          <div style="font-size:10px;color:var(--muted);">Expected Claims</div>
+        </div>
+        <div style="text-align:center;padding:10px;background:var(--card2);border-radius:8px;">
+          <div style="font-size:24px;font-weight:800;color:var(--red);" id="fc-payouts">—</div>
+          <div style="font-size:10px;color:var(--muted);">Expected Payouts</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;" id="fc-confidence">Loading forecast...</div>
+      <div id="fc-chart" style="height:80px;margin-bottom:12px;"></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Trigger Risk Next Week</div>
+      <div id="fc-trigger-risks"></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;margin-top:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">City Risk Levels</div>
+      <div id="fc-city-risks" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-hd">Fraud Detection Analytics <span class="info-tip">i<span class="tip-text">6-module advanced fraud engine: GPS geofencing, shift-time validation, historical weather cross-check, velocity anomaly detection, behavioral pattern analysis, and cross-claim deduplication. Each claim is scored through all 6 modules.</span></span></div>
+      <div id="admin-fraud-analytics">
+        <p class="text-muted text-sm">Analyze claims to see fraud breakdown...</p>
       </div>
     </div>
 
@@ -1455,6 +1530,16 @@ function showApp() {
 
   loadDashboard();
   setTimeout(refreshIcons, 150);
+
+  // Phase 3: Send GPS to backend for fraud detection (non-blocking, silent)
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      api('/auth/me/location', {
+        method: 'POST',
+        body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      }).catch(() => {});  // Silent — GPS is optional
+    }, () => {}, { timeout: 5000, maximumAge: 300000 });
+  }
 }
 
 function navTo(page) {
@@ -1487,10 +1572,11 @@ function navTo(page) {
 // ════════════════════════════════════════════════════════════════
 async function loadDashboard() {
   try {
-    const [policy, claimStats, triggers] = await Promise.all([
+    const [policy, claimStats, triggers, weeklySummary] = await Promise.all([
       api('/policies/active').catch(() => null),
       api('/claims/stats').catch(() => null),
       api('/triggers/?limit=5').catch(() => []),
+      api('/claims/my-weekly-summary').catch(() => null),
     ]);
 
     activePolicyData = policy;
@@ -1501,6 +1587,29 @@ async function loadDashboard() {
     document.getElementById('stat-premium').textContent   = policy ? fmt(policy.weekly_premium)+'/wk' : '—';
     document.getElementById('stat-max-payout').textContent = policy ? fmt(policy.max_weekly_payout) : '—';
     document.getElementById('stat-total-saved').textContent = claimStats ? fmt(claimStats.total_payout_inr) : '₹0';
+
+    // ── Earnings Protected Widget (Phase 3) ──
+    const ewWidget = document.getElementById('earnings-widget');
+    const ewEmpty = document.getElementById('earnings-widget-empty');
+    if (weeklySummary && weeklySummary.active_coverage) {
+      ewWidget.style.display = 'block';
+      ewEmpty.style.display = 'none';
+      document.getElementById('ew-total-protected').textContent = fmt(weeklySummary.earnings_protected_total);
+      const used = weeklySummary.earnings_protected_this_week;
+      const max = weeklySummary.max_weekly_payout;
+      const remaining = weeklySummary.coverage_remaining_this_week;
+      const pct = max > 0 ? Math.min(100, (used / max) * 100) : 0;
+      document.getElementById('ew-coverage-used').textContent = `${fmt(used)} / ${fmt(max)}`;
+      document.getElementById('ew-coverage-bar').style.width = pct + '%';
+      document.getElementById('ew-coverage-bar').style.background = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--yellow)' : 'var(--green)';
+      document.getElementById('ew-coverage-remaining').textContent = `${fmt(remaining)} remaining this week`;
+      document.getElementById('ew-claims-week').textContent = weeklySummary.claims_this_week;
+      document.getElementById('ew-disruptions').textContent = weeklySummary.disruptions_this_week;
+      document.getElementById('ew-premiums-paid').textContent = fmt(weeklySummary.total_premiums_paid);
+    } else if (ewWidget && ewEmpty) {
+      ewWidget.style.display = 'none';
+      ewEmpty.style.display = 'block';
+    }
 
     // ── Hero card ──
     const badge2 = document.getElementById('dash-policy-badge2');
@@ -1999,7 +2108,7 @@ async function loadClaimsPage() {
 
 function filterClaims(status, chipEl) {
   document.querySelectorAll('#claims-filter-chips .chip').forEach(c => c.classList.remove('active'));
-  chipEl.classList.add('active');
+  if (chipEl) chipEl.classList.add('active');
   const filtered = status === 'all' ? _allClaims : _allClaims.filter(c => c.status === status);
   const el = document.getElementById('claims-list');
   if (!filtered.length) {
@@ -2018,6 +2127,31 @@ function renderClaimCard(c, isAdmin = false) {
 
   const sc = scoreColor(c.authenticity_score);
   const reviewable = isAdmin && (c.status === 'pending_review' || c.status === 'manual_review');
+
+  // Risk tier badge
+  const riskColors = { LOW: '#22c55e', MEDIUM: '#f59e0b', HIGH: '#f97316', CRITICAL: '#ef4444' };
+  const riskTier = c.risk_tier || (c.authenticity_score >= 75 ? 'LOW' : c.authenticity_score >= 45 ? 'MEDIUM' : c.authenticity_score >= 20 ? 'HIGH' : 'CRITICAL');
+  const riskColor = riskColors[riskTier] || '#999';
+
+  // Fraud validation checks (6 modules)
+  const checks = [
+    { label: 'GPS',      valid: c.gps_valid !== false },
+    { label: 'Shift',    valid: c.shift_valid !== false },
+    { label: 'Weather',  valid: c.weather_cross_valid !== false },
+    { label: 'Velocity', valid: c.velocity_valid !== false },
+    { label: 'Pattern',  valid: c.activity_valid !== false },
+    { label: 'Dedup',    valid: c.cross_source_valid !== false },
+  ];
+
+  // GPS distance display
+  const gpsDistText = c.gps_distance_km != null
+    ? `${c.gps_distance_km.toFixed(1)}km from zone`
+    : '';
+
+  // ML fraud probability
+  const mlText = c.ml_fraud_probability != null
+    ? `ML: ${(c.ml_fraud_probability * 100).toFixed(0)}% risk`
+    : '';
 
   return `
     <div class="claim-card ${c.paid_at ? 'payout-success' : ''}" id="claim-card-${c.id}">
@@ -2045,9 +2179,26 @@ function renderClaimCard(c, isAdmin = false) {
         <div class="score-bar">
           <div class="score-fill" style="width:${c.authenticity_score}%;background:${sc}"></div>
         </div>
+        <div class="flex justify-between text-xs" style="margin-top:3px;">
+          <span style="color:${riskColor};font-weight:600;font-size:10px;letter-spacing:0.5px;">${riskTier} RISK</span>
+          <span class="text-muted" style="font-size:10px;">${mlText}</span>
+        </div>
       </div>
 
-      ${c.paid_at ? `<div class="text-xs text-green" style="margin-top:6px;">Paid ${timeAgo(c.paid_at)} · ${esc(c.payment_ref || 'UPI')}</div>` : ''}
+      <!-- Fraud Validation Checks (6 modules) -->
+      <div style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap;">
+        ${checks.map(ch => `<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${ch.valid ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.15)'};color:${ch.valid ? '#22c55e' : '#ef4444'};font-weight:500;">${ch.valid ? '✓' : '✗'} ${ch.label}</span>`).join('')}
+      </div>
+
+      ${gpsDistText ? `<div class="text-xs text-muted" style="margin-top:4px;">📍 ${gpsDistText}</div>` : ''}
+
+      ${c.paid_at ? `<div class="text-xs text-green" style="margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span>${c.payout_gateway === 'razorpay' ? '🟢' : c.payout_status === 'settled' ? '🟢' : c.payout_status === 'failed' ? '🔴' : '🟡'}</span>
+        <span>Paid ${timeAgo(c.paid_at)}</span>
+        <span style="padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:0.3px;${c.payout_gateway === 'razorpay' ? 'background:rgba(56,132,244,0.15);color:#3884f4;' : 'background:rgba(255,255,255,0.08);color:var(--muted);'}">${c.payout_gateway === 'razorpay' ? 'RAZORPAY' : 'MOCK UPI'}</span>
+        ${c.payout_utr ? `<span style="font-family:monospace;font-size:10px;color:var(--muted);">UTR: ${esc(c.payout_utr)}</span>` : `<span style="font-size:10px;color:var(--muted);">${esc(c.payment_ref || '')}</span>`}
+      </div>` : ''}
+
       ${c.fraud_flags ? `<div class="claim-flags">${esc(c.fraud_flags)}</div>` : ''}
 
       ${reviewable ? `
@@ -2110,12 +2261,13 @@ async function refreshAdminStats() {
 // ════════════════════════════════════════════════════════════════
 async function loadAdminPage() {
   try {
-    const [stats, allClaims, workers, cityStats, mlInfo] = await Promise.all([
+    const [stats, allClaims, workers, cityStats, mlInfo, forecast] = await Promise.all([
       api('/claims/admin/stats'),
       api('/claims/admin/all?limit=20'),
       api('/claims/admin/workers').catch(() => []),
       api('/analytics/cities').catch(() => []),
       api('/policies/ml-model-info').catch(() => null),
+      api('/analytics/forecast').catch(() => null),
     ]);
 
     // Stats grid
@@ -2240,6 +2392,113 @@ async function loadAdminPage() {
         </div>`;
     } else {
       mlEl.innerHTML = '<p class="text-muted text-sm">ML model info unavailable.</p>';
+    }
+
+    // Fraud Detection Analytics (Phase 3)
+    if (allClaims.length > 0) {
+      const gpsFlagged = allClaims.filter(c => c.gps_valid === false).length;
+      const shiftFlagged = allClaims.filter(c => c.shift_valid === false).length;
+      const weatherFlagged = allClaims.filter(c => c.weather_cross_valid === false).length;
+      const velocityFlagged = allClaims.filter(c => c.velocity_valid === false).length;
+      const patternFlagged = allClaims.filter(c => c.activity_valid === false).length;
+      const totalFlagged = allClaims.filter(c => c.authenticity_score < 75).length;
+      const avgScore = (allClaims.reduce((s,c) => s + (c.authenticity_score||0), 0) / allClaims.length).toFixed(1);
+      const fraudEl = document.getElementById('admin-fraud-analytics');
+      if (fraudEl) {
+        fraudEl.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+            <div style="text-align:center;padding:8px;background:var(--card2);border-radius:8px;">
+              <div style="font-size:20px;font-weight:800;color:var(--green);">${avgScore}</div>
+              <div style="font-size:10px;color:var(--muted);">Avg Auth Score</div>
+            </div>
+            <div style="text-align:center;padding:8px;background:var(--card2);border-radius:8px;">
+              <div style="font-size:20px;font-weight:800;color:var(--orange);">${totalFlagged}</div>
+              <div style="font-size:10px;color:var(--muted);">Flagged Claims</div>
+            </div>
+            <div style="text-align:center;padding:8px;background:var(--card2);border-radius:8px;">
+              <div style="font-size:20px;font-weight:800;">${allClaims.length}</div>
+              <div style="font-size:10px;color:var(--muted);">Total Analyzed</div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;">Detection Breakdown</div>
+          ${[
+            {label:'GPS Spoofing', count:gpsFlagged, color:'#ef4444'},
+            {label:'Shift Mismatch', count:shiftFlagged, color:'#f97316'},
+            {label:'Weather Anomaly', count:weatherFlagged, color:'#eab308'},
+            {label:'Velocity Anomaly', count:velocityFlagged, color:'#8b5cf6'},
+            {label:'Pattern Anomaly', count:patternFlagged, color:'#3b82f6'},
+          ].map(d => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;">
+              <span style="color:var(--text);">${d.label}</span>
+              <span style="font-weight:700;color:${d.count > 0 ? d.color : 'var(--muted)'};">${d.count} flagged</span>
+            </div>`).join('')}`;
+      }
+    }
+
+    // Predictive Analytics Forecast (Phase 3)
+    if (forecast) {
+      const lrPct = (forecast.predicted_loss_ratio * 100).toFixed(1);
+      const lrColor = forecast.predicted_loss_ratio < 0.65 ? 'var(--green)' : forecast.predicted_loss_ratio < 0.80 ? 'var(--yellow)' : 'var(--red)';
+      const fcLR = document.getElementById('fc-loss-ratio');
+      if (fcLR) { fcLR.textContent = lrPct + '%'; fcLR.style.color = lrColor; }
+      const fcCl = document.getElementById('fc-claims');
+      if (fcCl) fcCl.textContent = forecast.predicted_claims;
+      const fcPy = document.getElementById('fc-payouts');
+      if (fcPy) fcPy.textContent = fmt(forecast.predicted_payouts_inr);
+
+      const ci = forecast.confidence_interval || [0, 0];
+      const fcConf = document.getElementById('fc-confidence');
+      if (fcConf) fcConf.textContent = `Week ${forecast.forecast_week} | CI: ${(ci[0]*100).toFixed(0)}%-${(ci[1]*100).toFixed(0)}% | Seasonal: ${forecast.seasonal_factor}x | ${forecast.data_points_used} weeks analyzed | ${forecast.method}`;
+
+      // SVG sparkline
+      const fcChart = document.getElementById('fc-chart');
+      if (fcChart && forecast.historical_trend) {
+        const pts = forecast.historical_trend.map(h => h.loss_ratio);
+        pts.push(forecast.predicted_loss_ratio);
+        const cw = fcChart.offsetWidth || 280;
+        const ch = 80;
+        const maxY = Math.max(...pts, 0.01) * 1.3;
+        const stepX = pts.length > 1 ? cw / (pts.length - 1) : cw;
+        const lastI = pts.length - 1;
+        const histPath = pts.slice(0,-1).map((v,i) => {
+          const x = i * stepX, y = ch - (v/maxY)*ch;
+          return (i===0?'M':'L')+x.toFixed(1)+','+y.toFixed(1);
+        }).join(' ');
+        const prevX = (lastI-1)*stepX, prevY = ch-(pts[lastI-1]/maxY)*ch;
+        const fx = lastI*stepX, fy = ch-(forecast.predicted_loss_ratio/maxY)*ch;
+        const dots = pts.slice(0,-1).map((v,i) => `<circle cx="${(i*stepX).toFixed(1)}" cy="${(ch-(v/maxY)*ch).toFixed(1)}" r="2.5" fill="var(--blue)"/>`).join('');
+        fcChart.innerHTML = `<svg width="100%" height="${ch}" viewBox="0 0 ${cw} ${ch}">
+          <path d="${histPath}" fill="none" stroke="var(--blue)" stroke-width="2" opacity="0.7"/>
+          <line x1="${prevX}" y1="${prevY}" x2="${fx}" y2="${fy}" stroke="var(--orange)" stroke-width="2" stroke-dasharray="5,3"/>
+          <circle cx="${fx}" cy="${fy}" r="5" fill="var(--orange)"/>
+          ${dots}
+          <text x="${fx-4}" y="${Math.max(12, fy-8)}" font-size="9" fill="var(--orange)" text-anchor="end" font-weight="700">Forecast</text>
+        </svg>`;
+      }
+
+      // Trigger risk forecast
+      const trEl = document.getElementById('fc-trigger-risks');
+      if (trEl) {
+        const entries = Object.entries(forecast.trigger_risk_forecast || {});
+        trEl.innerHTML = entries.length ? entries.map(([type, count]) => {
+          const risk = count > 3 ? 'HIGH' : count > 1 ? 'MEDIUM' : 'LOW';
+          const color = risk === 'HIGH' ? 'var(--red)' : risk === 'MEDIUM' ? 'var(--yellow)' : 'var(--green)';
+          return `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px;">
+            <span>${triggerIcon(type)} ${type}</span>
+            <span style="color:${color};font-weight:600;">${count} expected</span>
+          </div>`;
+        }).join('') : '<span class="text-muted text-sm">No trigger history to forecast from</span>';
+      }
+
+      // City risk pills
+      const crEl = document.getElementById('fc-city-risks');
+      if (crEl) {
+        crEl.innerHTML = (forecast.city_risk_forecast || []).map(c => {
+          const bg = c.risk_level === 'HIGH' ? 'rgba(239,68,68,0.15)' : c.risk_level === 'MEDIUM' ? 'rgba(245,158,11,0.15)' : 'rgba(34,197,94,0.12)';
+          const fg = c.risk_level === 'HIGH' ? '#ef4444' : c.risk_level === 'MEDIUM' ? '#f59e0b' : '#22c55e';
+          return `<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:${bg};color:${fg};font-weight:600;">${c.city} ${c.seasonal_factor}x</span>`;
+        }).join('');
+      }
     }
 
     // All claims — isAdmin=true enables approve/reject buttons on reviewable claims

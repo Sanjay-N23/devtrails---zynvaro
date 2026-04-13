@@ -9,6 +9,7 @@ Run with:
 import sys
 import os
 import datetime
+import pytest
 
 # Ensure the backend package root is on the path so ml.premium_engine can be imported
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -67,29 +68,33 @@ def test_seasonal_index_monsoon_interior_week28_returns_above_1_0():
 
 def test_seasonal_index_winter_haze_week1_returns_1_25():
     d = _date_for_iso_week(1)
-    assert get_seasonal_index(d) == 1.25
+    assert get_seasonal_index(d, city="Delhi") == 1.25  # Winter haze = Delhi/Kolkata only
 
 
 def test_seasonal_index_winter_haze_week52_returns_1_25():
     d = _date_for_iso_week(52)
-    assert get_seasonal_index(d) == 1.25
+    assert get_seasonal_index(d, city="Delhi") == 1.25
 
 
 def test_seasonal_index_winter_haze_week44_returns_1_25():
-    # First week of the winter-haze band (>= 44)
     d = _date_for_iso_week(44)
-    assert get_seasonal_index(d) == 1.25
+    assert get_seasonal_index(d, city="Delhi") == 1.25
 
 
 def test_seasonal_index_winter_haze_week6_returns_1_25():
-    # Last week of the early-year haze band (<= 6)
     d = _date_for_iso_week(6)
-    assert get_seasonal_index(d) == 1.25
+    assert get_seasonal_index(d, city="Kolkata") == 1.25  # Kolkata also has winter haze
+
+
+def test_seasonal_index_winter_haze_not_for_mumbai():
+    """Mumbai should NOT get winter haze uplift."""
+    d = _date_for_iso_week(1)
+    assert get_seasonal_index(d, city="Mumbai") == 1.0
 
 
 def test_seasonal_index_pre_monsoon_week20_returns_1_2():
     d = _date_for_iso_week(20)
-    assert get_seasonal_index(d) == 1.2
+    assert get_seasonal_index(d, city="Delhi") == 1.2  # Pre-heat = Delhi/Hyderabad
 
 
 def test_seasonal_index_off_season_week12_returns_1_0():
@@ -138,12 +143,12 @@ def test_get_zone_risk_unknown_pincode_is_deterministic():
     assert result_a == result_b
 
 
-def test_get_zone_risk_non_numeric_pincode_uses_seed_42_is_deterministic():
-    # Non-numeric pincode falls through to seed 42 — result must be stable
+def test_get_zone_risk_non_numeric_pincode_is_deterministic():
+    # Non-numeric pincode uses hash-based noise — result must be stable
     result_a = get_zone_risk("ABCDEF", "Mumbai")
     result_b = get_zone_risk("ABCDEF", "Mumbai")
     assert result_a == result_b
-    assert result_a == 0.8  # Confirmed value with seed 42 and Mumbai city_risk 0.82
+    assert 0.7 <= result_a <= 0.95  # Mumbai city_risk 0.82 +/- 0.08
 
 
 def test_get_zone_risk_known_pincode_110001_returns_0_75():
@@ -267,14 +272,17 @@ def test_calculate_premium_weekly_never_below_0_75x_base_pro_armor():
 
 # -- Basic Shield affordability cap --
 
-def test_calculate_premium_basic_shield_affordability_cap_is_36():
-    # Peak conditions push raw premium above 2x base; affordability cap (4500*0.008=36) applies
+def test_calculate_premium_basic_shield_affordability_cap():
+    # Peak conditions: affordability cap = city_daily_income * 7 * 0.008
+    # Mumbai Basic: 900 * 7 * 0.008 = 50.40
     peak_date = _date_for_iso_week(32)
     result = calculate_premium(
         "Basic Shield", "400051", "Mumbai",
         claim_history_count=5, date=peak_date
     )
-    assert result["weekly_premium"] == 36.0
+    # Cap applied: premium should be <= city-based max_affordable
+    assert result["weekly_premium"] <= 50.40
+    assert result["breakdown"]["affordability_capped"] == True
 
 
 def test_calculate_premium_affordability_cap_not_applied_to_standard_guard():
@@ -387,21 +395,11 @@ def test_calculate_premium_no_forecast_risk_loading_is_0():
     assert result["breakdown"]["forecast_loading_inr"] == 0.0
 
 
-# -- Unknown tier fallback --
+# -- Unknown tier now raises ValueError (Fix C: no silent fallback) --
 
-def test_calculate_premium_unknown_tier_falls_back_to_standard_guard_base():
-    result = calculate_premium("Nonexistent Tier", "560001", "Bangalore", date=_OFF_SEASON)
-    assert result["base_premium"] == 49.0
-
-
-def test_calculate_premium_unknown_tier_falls_back_to_standard_guard_max_daily():
-    result = calculate_premium("Nonexistent Tier", "560001", "Bangalore", date=_OFF_SEASON)
-    assert result["max_daily_payout"] == 600
-
-
-def test_calculate_premium_unknown_tier_falls_back_to_standard_guard_max_weekly():
-    result = calculate_premium("Nonexistent Tier", "560001", "Bangalore", date=_OFF_SEASON)
-    assert result["max_weekly_payout"] == 1200
+def test_calculate_premium_unknown_tier_raises_error():
+    with pytest.raises(ValueError, match="Unknown policy tier"):
+        calculate_premium("Nonexistent Tier", "560001", "Bangalore", date=_OFF_SEASON)
 
 
 # -- tier field echoed back --

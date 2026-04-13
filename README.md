@@ -15,17 +15,17 @@
 
 [![Guidewire DEVTrails](https://img.shields.io/badge/🏆_Guidewire-DEVTrails_2026-FF6B35?style=for-the-badge)](https://devtrails.guidewire.com)
 [![Team](https://img.shields.io/badge/Team-AeroFyta-blueviolet?style=for-the-badge&logo=rocket&logoColor=white)](#-team-aerofyta)
-[![Phase](https://img.shields.io/badge/Phase_2-Automation_%26_Protection-FF6B35?style=for-the-badge&logo=shield&logoColor=white)](#)
+[![Phase](https://img.shields.io/badge/Phase_3-Scale_%26_Optimise_(SOAR)-FF6B35?style=for-the-badge&logo=shield&logoColor=white)](#)
 [![Riders](https://img.shields.io/badge/Target-12.7M_Gig_Workers-E34F26?style=for-the-badge&logo=uber&logoColor=white)](#)
 
 <br>
 
 ![Python](https://img.shields.io/badge/Python-FastAPI-3776AB?style=flat-square&logo=python&logoColor=white)
-![React](https://img.shields.io/badge/React-PWA-61DAFB?style=flat-square&logo=react&logoColor=black)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-PostGIS-4169E1?style=flat-square&logo=postgresql&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis-Streams-DC382D?style=flat-square&logo=redis&logoColor=white)
-![XGBoost](https://img.shields.io/badge/XGBoost-ML-F7931E?style=flat-square&logo=xgboost&logoColor=white)
-![WhatsApp](https://img.shields.io/badge/WhatsApp-Cloud_API-25D366?style=flat-square&logo=whatsapp&logoColor=white)
+![Frontend](https://img.shields.io/badge/Vanilla_JS-PWA-F7DF1E?style=flat-square&logo=javascript&logoColor=black)
+![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?style=flat-square&logo=sqlite&logoColor=white)
+![ML](https://img.shields.io/badge/scikit--learn-RandomForest-F7931E?style=flat-square&logo=scikitlearn&logoColor=white)
+![Razorpay](https://img.shields.io/badge/Razorpay-Test_Mode-0080FF?style=flat-square&logo=razorpay&logoColor=white)
+![Lucide](https://img.shields.io/badge/Lucide-Icons-4A90D9?style=flat-square)
 
 ---
 

@@ -14,7 +14,7 @@ from database import get_db
 from models import Worker
 from routers.auth import get_current_worker
 from routers.claims import get_current_admin
-from analytics import get_weekly_stats, get_weekly_time_series, get_city_stats_for_week
+from analytics import get_weekly_stats, get_weekly_time_series, get_city_stats_for_week, forecast_next_week
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
@@ -67,3 +67,19 @@ def city_breakdown(
              total_payouts_settled, loss_ratio, avg_authenticity_score
     """
     return get_city_stats_for_week(db, week=week, year=year)
+
+
+@router.get("/forecast")
+def get_forecast(
+    city: Optional[str] = Query(None, description="Optional city filter for city-specific forecast."),
+    db: Session = Depends(get_db),
+    current_worker: Worker = Depends(get_current_admin),
+):
+    """
+    [Admin] Predict next week's loss ratio, expected claims, and payouts.
+
+    Uses EWMA (exponentially weighted moving average) on 8-week history
+    + seasonal risk adjustment. Returns prediction, confidence interval,
+    per-trigger risk forecast, and per-city risk breakdown.
+    """
+    return forecast_next_week(db, city=city)

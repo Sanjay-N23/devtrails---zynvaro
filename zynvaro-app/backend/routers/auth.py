@@ -57,6 +57,13 @@ class WorkerProfile(BaseModel):
     zone_risk_score: float
     claim_history_count: int
     disruption_streak: int
+    # GPS (Phase 3)
+    home_lat: Optional[float] = None
+    home_lng: Optional[float] = None
+    last_known_lat: Optional[float] = None
+    last_known_lng: Optional[float] = None
+    # Behavioral (Phase 3)
+    fraud_flag_count: int = 0
     is_admin: bool = False
     created_at: datetime
 
@@ -110,6 +117,10 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
     # Auto-compute zone risk
     zone_risk = get_zone_risk(req.pincode, req.city)
 
+    # Auto-assign GPS coordinates from pincode (Phase 3: Advanced Fraud Detection)
+    from services.fraud_engine import get_pincode_gps
+    home_lat, home_lng = get_pincode_gps(req.pincode, req.city)
+
     worker = Worker(
         full_name=req.full_name,
         phone=req.phone,
@@ -121,6 +132,11 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
         vehicle_type=req.vehicle_type or "2-Wheeler",
         shift=req.shift or "Evening Peak (6PM-2AM)",
         zone_risk_score=zone_risk,
+        home_lat=home_lat,
+        home_lng=home_lng,
+        last_known_lat=home_lat,
+        last_known_lng=home_lng,
+        last_location_at=datetime.utcnow() if home_lat else None,
     )
     db.add(worker)
     db.commit()
@@ -155,3 +171,18 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 @router.get("/me", response_model=WorkerProfile)
 def get_profile(worker: Worker = Depends(get_current_worker)):
     return worker
+
+
+# ─── Location Update (Phase 3: GPS Fraud Detection) ──────────
+class LocationUpdate(BaseModel):
+    lat: float
+    lng: float
+
+@router.post("/me/location")
+def update_location(loc: LocationUpdate, worker: Worker = Depends(get_current_worker), db: Session = Depends(get_db)):
+    """Update worker's current GPS coordinates (for GPS-based fraud detection)."""
+    worker.last_known_lat = loc.lat
+    worker.last_known_lng = loc.lng
+    worker.last_location_at = datetime.utcnow()
+    db.commit()
+    return {"status": "ok", "lat": loc.lat, "lng": loc.lng}

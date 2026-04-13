@@ -373,7 +373,7 @@ def simulate_trigger(trigger_type: str, city: str) -> dict:
     }
     value = demo_values.get(trigger_type, 100.0)
     return _make_trigger(trigger_type, city, value, "high",
-                         desc=f"[DEMO] Simulated {trigger_type} event in {city}")
+                         desc=f"Simulated {trigger_type} in {city} — parametric trigger fired")
 
 
 def _make_trigger(trigger_type: str, city: str, value: float,
@@ -407,6 +407,12 @@ def compute_authenticity_score(
     trigger_type: str = None,
     payout_amount: float = None,
     disruption_streak: int = 0,
+    # Phase 3 advanced parameters (when provided, uses full fraud engine)
+    worker=None,
+    trigger_event=None,
+    claim_lat: float = None,
+    claim_lng: float = None,
+    db=None,
 ) -> dict:
     """
     Multi-signal authenticity scoring (0–100) — ML-augmented via RandomForestClassifier.
@@ -423,6 +429,22 @@ def compute_authenticity_score(
     captures non-linear interactions (e.g. late-night + city mismatch + high payout
     = extreme fraud risk) and surfaces them as admin-visible signals.
     """
+    # ── Phase 3: Delegate to advanced fraud engine when full data available ──
+    if worker is not None and trigger_event is not None:
+        try:
+            from services.fraud_engine import compute_advanced_fraud_score
+            return compute_advanced_fraud_score(
+                worker=worker,
+                trigger_event=trigger_event,
+                claim_lat=claim_lat,
+                claim_lng=claim_lng,
+                same_week_claims=same_week_claims,
+                db=db,
+            )
+        except Exception as e:
+            print(f"[FraudEngine] Advanced fraud scoring failed, falling back to rule-based: {e}")
+
+    # ── Legacy fallback: Rule-based scoring (backward compatible) ─────────
     city_match = worker_city.lower() == trigger_city.lower()
 
     # ── Rule-based score (original logic, kept for auditability) ──────────

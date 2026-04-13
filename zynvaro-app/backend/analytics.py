@@ -360,3 +360,130 @@ def get_city_stats_for_week(
 
     # Sort by loss_ratio descending so the riskiest cities appear first
     return sorted(city_stats, key=lambda x: x["loss_ratio"], reverse=True)
+
+
+# ─────────────────────────────────────────────────────────────────
+# PREDICTIVE ANALYTICS: NEXT WEEK FORECAST (Phase 3: SOAR)
+# Uses EWMA + seasonal adjustment — honest actuarial method for
+# short-horizon forecasting with limited data (<10 weeks).
+# ─────────────────────────────────────────────────────────────────
+
+def _ewma(values: list, alpha: float = 0.3) -> float:
+    """Exponentially weighted moving average. alpha=0.3 means recent values weighted more."""
+    if not values:
+        return 0.0
+    if len(values) == 1:
+        return float(values[0])
+    result = float(values[0])
+    for v in values[1:]:
+        result = alpha * float(v) + (1 - alpha) * result
+    return result
+
+
+def forecast_next_week(
+    db: Session,
+    city: Optional[str] = None,
+) -> dict:
+    """
+    Predict next week's loss ratio, claim volume, and payouts.
+
+    Method: EWMA (exponentially weighted moving average) on 8-week history
+    + seasonal risk adjustment from premium engine. This is the standard
+    actuarial approach for short-horizon forecasting with limited data.
+
+    NOT a time-series ML model — we have <10 data points, which is
+    insufficient for ARIMA/Prophet. EWMA + seasonal is more honest
+    and what real insurance actuaries use for weekly projections.
+    """
+    from ml.premium_engine import get_seasonal_index
+
+    # Historical data
+    history = get_weekly_time_series(db, weeks=8, city=city)
+
+    # Next week's ISO week
+    current_week, current_year = _current_iso_week()
+    next_week = current_week + 1
+    next_year = current_year
+    if next_week > 52:
+        next_week = 1
+        next_year += 1
+    next_start, next_end = _week_boundaries(next_week, next_year)
+
+    # Extract time series
+    loss_ratios = [w.get("loss_ratio", 0) for w in history]
+    claims_counts = [w.get("claims_total", 0) for w in history]
+    payout_totals = [w.get("total_payouts_settled", 0) for w in history]
+
+    # 1. EWMA predictions (alpha=0.3 — recent weeks weighted more)
+    pred_lr = _ewma(loss_ratios, 0.3)
+    pred_claims = _ewma(claims_counts, 0.3)
+    pred_payouts = _ewma(payout_totals, 0.3)
+
+    # 2. Seasonal adjustment for next week
+    seasonal = get_seasonal_index(date=next_start, city=city)
+    pred_lr_adj = pred_lr * seasonal
+    pred_payouts_adj = pred_payouts * seasonal
+    pred_claims_adj = pred_claims * seasonal
+
+    # 3. Per-trigger risk forecast (last 4 weeks average, scaled by seasonal)
+    trigger_dist = {}
+    recent_weeks = history[-4:] if len(history) >= 4 else history
+    for w in recent_weeks:
+        for t in w.get("by_trigger", []):
+            name = t.get("trigger_type", "Unknown")
+            trigger_dist.setdefault(name, []).append(t.get("claim_count", 0))
+    trigger_forecast = {}
+    for name, counts in trigger_dist.items():
+        avg = sum(counts) / len(counts) if counts else 0
+        trigger_forecast[name] = round(avg * seasonal, 1)
+
+    # 4. Confidence interval (mean +/- 1 std dev of historical loss ratios)
+    if len(loss_ratios) >= 2:
+        mean_lr = sum(loss_ratios) / len(loss_ratios)
+        variance = sum((x - mean_lr) ** 2 for x in loss_ratios) / len(loss_ratios)
+        std_dev = variance ** 0.5
+    else:
+        std_dev = pred_lr_adj * 0.3  # 30% uncertainty if no history
+
+    ci_lower = max(0, round(pred_lr_adj - std_dev, 3))
+    ci_upper = round(pred_lr_adj + std_dev, 3)
+
+    # 5. Per-city risk breakdown
+    all_cities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Pune", "Kolkata"]
+    city_forecasts = []
+    for c in all_cities:
+        c_seasonal = get_seasonal_index(date=next_start, city=c)
+        risk_level = "HIGH" if c_seasonal > 1.3 else "MEDIUM" if c_seasonal > 1.0 else "LOW"
+        city_forecasts.append({
+            "city": c,
+            "seasonal_factor": c_seasonal,
+            "risk_level": risk_level,
+        })
+    # Sort: HIGH first
+    risk_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    city_forecasts.sort(key=lambda x: risk_order.get(x["risk_level"], 3))
+
+    return {
+        "forecast_week": next_week,
+        "forecast_year": next_year,
+        "week_start": next_start.strftime("%Y-%m-%d"),
+        "week_end": next_end.strftime("%Y-%m-%d"),
+        "predicted_loss_ratio": round(pred_lr_adj, 3),
+        "predicted_claims": max(0, round(pred_claims_adj)),
+        "predicted_payouts_inr": round(max(0, pred_payouts_adj), 2),
+        "confidence_interval": [ci_lower, ci_upper],
+        "seasonal_factor": seasonal,
+        "method": "EWMA + seasonal adjustment (8-week horizon)",
+        "trigger_risk_forecast": trigger_forecast,
+        "city_risk_forecast": city_forecasts,
+        "data_points_used": len(history),
+        "historical_trend": [
+            {
+                "week": w.get("week_number", 0),
+                "loss_ratio": w.get("loss_ratio", 0),
+                "claims": w.get("claims_total", 0),
+                "payouts": w.get("total_payouts_settled", 0),
+            }
+            for w in history
+        ],
+    }

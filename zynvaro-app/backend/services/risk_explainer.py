@@ -186,7 +186,7 @@ def generate_risk_profile(
     """
     pricing = calculate_premium(tier, worker_pincode, worker_city, claim_history, disruption_streak)
     zone_risk = get_zone_risk(worker_pincode, worker_city)
-    seasonal = get_seasonal_index()
+    seasonal = get_seasonal_index(city=worker_city)
     seasonal_key = _get_seasonal_context(seasonal)
     city_income = CITY_DAILY_INCOME.get(worker_city, {})
     daily_income = city_income.get(tier, 1000)

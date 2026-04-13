@@ -56,11 +56,13 @@ app.add_middleware(
 # ─────────────────────────────────────────────────────────────────
 # ROUTERS
 # ─────────────────────────────────────────────────────────────────
+from routers import webhooks
 app.include_router(auth.router)
 app.include_router(policies.router)
 app.include_router(triggers.router)
 app.include_router(claims.router)
 app.include_router(analytics.router)
+app.include_router(webhooks.router)
 
 # ─────────────────────────────────────────────────────────────────
 # SERVE FRONTEND (static files)
@@ -82,8 +84,8 @@ def health_check():
     return {
         "status": "healthy",
         "service": "Zynvaro API",
-        "version": "2.0.0",
-        "phase": "DEVTrails 2026 — Phase 2",
+        "version": "3.0.0",
+        "phase": "DEVTrails 2026 — Phase 3: SOAR",
     }
 
 
@@ -191,7 +193,9 @@ def seed_demo_data():
         workers_created = []
         for i, wd in enumerate(demo_workers):
             from ml.premium_engine import get_zone_risk
+            from services.fraud_engine import get_pincode_gps
             zone_risk = get_zone_risk(wd["pincode"], wd["city"])
+            home_lat, home_lng = get_pincode_gps(wd["pincode"], wd["city"])
             w = Worker(
                 full_name=wd["full_name"],
                 phone=wd["phone"],
@@ -206,6 +210,10 @@ def seed_demo_data():
                 claim_history_count=random.randint(0, 3),
                 disruption_streak=random.randint(0, 5),
                 is_admin=(i == 0),  # First worker (Ravi Kumar) is admin
+                home_lat=home_lat,
+                home_lng=home_lng,
+                last_known_lat=home_lat,
+                last_known_lng=home_lng,
             )
             db.add(w)
             db.flush()
@@ -256,7 +264,7 @@ def seed_demo_data():
                 source_secondary=td["src2"],
                 is_validated=True,
                 severity="high",
-                description=f"[Demo] {td['type']} in {td['city']}: {td['value']} {td['unit']}",
+                description=f"{td['type']} in {td['city']}: {td['value']} {td['unit']}",
                 detected_at=datetime.utcnow() - timedelta(hours=random.randint(1, 24)),
                 expires_at=datetime.utcnow() + timedelta(hours=4),
             )
