@@ -1,5 +1,5 @@
 // Zynvaro Service Worker — PWA offline support
-const CACHE = 'zynvaro-v6'; // BUMP VERSION ON EVERY DEPLOY
+const CACHE = 'zynvaro-v7'; // BUMP VERSION ON EVERY DEPLOY — Phase 3 SOAR
 const STATIC = ['/app', '/static/manifest.json', '/static/Zynvaro-bg-removed.png'];
 
 self.addEventListener('install', e => {
@@ -18,7 +18,7 @@ self.addEventListener('fetch', e => {
   // Skip cache entirely for API calls
   if (e.request.url.includes('/auth/') || e.request.url.includes('/policies') ||
       e.request.url.includes('/triggers') || e.request.url.includes('/claims') ||
-      e.request.url.includes('/analytics')) return;
+      e.request.url.includes('/analytics') || e.request.url.includes('/webhooks')) return;
 
   // Network-first for /app (always get fresh HTML, fall back to cache offline)
   if (e.request.url.endsWith('/app') || e.request.url.includes('/app?')) {

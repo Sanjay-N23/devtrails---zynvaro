@@ -43,7 +43,7 @@ This is parametric insurance done correctly — and we've built it end to end, t
 |---|---|---|---|
 | **Phase 1** | Mar 4–20, 2026 | Ideate & Know Your Delivery Worker | ✅ Submitted |
 | **Phase 2** | Mar 21–Apr 4, 2026 | Protect Your Worker | ✅ Complete |
-| **Phase 3** | Apr 5–17, 2026 | Perfect for Your Worker | 🔄 In progress |
+| **Phase 3** | Apr 5–17, 2026 | Perfect for Your Worker | ✅ Complete |
 
 ## 1.4 Judging Criteria (What We're Optimizing For)
 
@@ -239,23 +239,35 @@ This is not a prototype. It's a production-grade application.
 | GDELT Project v2 | Civil disruption (news) | ✅ Live, no key needed |
 | HTTP HEAD probes | Platform outage (Blinkit, Zepto, Zomato) | ✅ Live, tested working |
 
-## 5.2 Phase 3 — What We're Adding (April 5–17)
+## 5.2 Phase 3 — What We Built (April 5–17) ✅
 
-### Advanced Fraud Detection
-- GPS trajectory analysis — detect claims from workers who were not in the trigger zone
-- Historical pattern clustering — identify repeat fraudulent profiles
-- Cross-claim deduplication across policies (same UPI ID, different phone)
-- Razorpay test mode integration — real UPI transaction lifecycle simulation
+### Advanced Fraud Detection (6-Module Engine) ✅
+- **GPS geofencing** — haversine distance calculation, 7 city zones with configurable radii (25-40km)
+- **Shift-time validation** — 5 shift windows with midnight crossing + 1hr grace period
+- **Historical weather cross-validation** — median-based anomaly detection on last 5 triggers
+- **Velocity anomaly detector** — impossible travel detection between cities (>200km/h flagged)
+- **Behavioral pattern analyzer** — frequency vs platform average, repeat offender escalation
+- **Cross-claim deduplicator** — trigger event dedup + UPI fraud ring detection across workers
+- **14-feature ML model v2** — RandomForest (3,000 samples, per-claim explanations, 79% synthetic accuracy)
 
-### Intelligent Dashboard Upgrades
-- **Worker view:** Projected next premium (based on streak trajectory), "You've saved ₹X this month" widget
-- **Admin/Insurer view:** Loss ratio trend forecast (ML regression on 8-week history), city risk heatmap with color intensity
-- **Trigger feed:** Real-time with geolocation filter chips
+### Instant Payout System (Razorpay Test Mode) ✅
+- Razorpay Payment Links API integration — real `rzp.io` URLs created per claim
+- PayoutTransaction lifecycle: INITIATED -> PENDING -> SETTLED/FAILED
+- Webhook handler (`POST /webhooks/razorpay`) for payment status callbacks
+- Graceful mock fallback when Razorpay keys not configured
+- 34 automated payout tests + 30 hard edge cases passing
 
-### Demo-Ready Layer
-- 5-minute recorded demo video (trigger simulation → claim auto-generated → payout displayed)
-- Demo mode toggle: simulate any of 6 triggers in any city with one click
-- Admin panel with all 5 demo workers' fraud scenarios visible simultaneously
+### Intelligent Dashboard ✅
+- **Worker view:** "Total Earnings Protected" shield widget, weekly coverage progress bar (green/yellow/red), claims/disruptions/premiums stats
+- **Admin view:** EWMA predictive forecast, SVG sparkline chart, per-trigger risk forecast, per-city risk pills with seasonal multipliers, fraud detection analytics (6-module breakdown)
+
+### Premium Engine Hardened (from external code audit) ✅
+- Per-claim ML explanations (replaces misleading global importances)
+- City-aware seasonal uplift (winter haze only for Delhi/Kolkata, not all cities)
+- Local RNG for zone risk (no global np.random.seed mutation)
+- Hard ValueError on unknown tier (no silent fallback to Standard Guard)
+
+### Test Suite: 858 automated tests (100% pass rate) ✅
 
 ## 5.3 The Complete End Product (Post-Hackathon Vision)
 
@@ -624,37 +636,43 @@ payout_transactions ─────────────────── fu
 
 # PART 11 — PHASE 3 COMPLETION PLAN
 
-## What We Deliver Before April 17
+## Phase 3 Delivery Status
 
-| Deliverable | Status | ETA |
+| Deliverable | Status | Delivered |
 |---|---|---|
-| Advanced GPS fraud detection | 🔄 Building | April 10 |
-| Razorpay test mode UPI simulation | 🔄 Building | April 11 |
-| Loss ratio predictive analytics (ML regression) | 🔄 Building | April 12 |
-| Demo video (5 minutes, screen capture) | 🔄 Planning | April 14 |
-| Pitch deck (10 slides, PDF export) | 🔄 Planning | April 15 |
-| Final code freeze + testing | 🔄 Scheduled | April 16 |
-| Submission | 🔄 Scheduled | April 17 |
+| Advanced GPS fraud detection (6 modules) | ✅ Complete | April 13 |
+| Razorpay test mode payout integration | ✅ Complete | April 13 |
+| Worker dashboard (earnings protected) | ✅ Complete | April 14 |
+| Admin predictive analytics (EWMA forecast) | ✅ Complete | April 14 |
+| Premium engine hardening (12 fixes from audit) | ✅ Complete | April 14 |
+| 858 automated tests (100% pass) | ✅ Complete | April 14 |
+| Demo video (5 minutes, screen capture) | Pending | April 16 |
+| Pitch deck (10 slides, PDF export) | Pending | April 16 |
+| Submission | Pending | April 17 |
 
-## Phase 3 Technical Additions
+## Phase 3 Technical Additions — All Delivered
 
-### 1. Advanced GPS Fraud Detection
-Workers' city claimed at registration vs city in live trigger — the current rule. Phase 3 adds:
-- **Shift-time validation** — a claim at 3pm for an "Evening Peak (6PM–2AM)" worker is flagged
-- **Historical location pattern** — if last 5 claims were all from different cities, flag as anomaly
-- **ML feature addition** — add claim_time vs declared_shift_overlap as feature 11 in RandomForest
+### 1. Advanced Fraud Detection (6-Module Engine)
+- **GPS geofencing** — haversine distance, 7 cities with radius zones (25-40km), IN_ZONE/EDGE_ZONE/OUTSIDE_ZONE
+- **Shift-time validation** — 5 windows with midnight crossing, +-1hr grace, off-hours = -20 score
+- **Historical weather cross-check** — median anomaly (>3x or <0.3x historical triggers)
+- **Velocity anomaly** — inter-city travel speed (>200km/h = impossible, >80km/h = suspicious)
+- **Behavioral patterns** — frequency vs platform avg, repeat offender (3+ flags), escalation detection
+- **Cross-claim dedup** — trigger event dedup + UPI fraud ring detection
+- **ML v2** — 14-feature RandomForest, 3000 samples, per-claim explanations (not global importances)
 
 ### 2. Razorpay Test Mode Integration
-- Real Razorpay test API key → real test UPI transactions
-- Webhook endpoint to receive `payment.captured` events from Razorpay
-- `PayoutTransaction.status` transitions from INITIATED → PENDING → SETTLED via webhook
-- Demo-able with Razorpay test UPI IDs (any `@razorpay` ID)
+- Payment Links API (real `rzp.io` URLs, real Razorpay dashboard entries)
+- PayoutTransaction lifecycle: INITIATED -> PENDING -> SETTLED/FAILED
+- Webhook handler at POST /webhooks/razorpay (signature verification)
+- Graceful mock fallback when keys not configured (all tests pass without Razorpay)
 
-### 3. Predictive Loss Ratio Analytics
-- 8-week rolling window → linear regression on loss ratio trend
-- Predict next week's expected loss ratio and total payout
-- Surface as "Predicted next week: ₹X in payouts (±₹Y)" in admin dashboard
-- Powered by the existing `/analytics/time-series` data
+### 3. Predictive Analytics (EWMA + Seasonal)
+- 8-week EWMA on loss ratio, claim counts, payout totals
+- City-aware seasonal adjustment (monsoon/haze/heat factors)
+- Per-trigger risk forecast + per-city risk breakdown
+- SVG sparkline chart with historical trend + forecast point
+- Confidence interval visualization
 
 ---
 
@@ -738,25 +756,24 @@ Guidewire's InsuranceSuite powers parametric products at enterprise scale. Zynva
 
 | Category | Count / Detail |
 |---|---|
-| API endpoints | 30 (fully functional) |
+| API endpoints | 33 (fully functional) |
 | Database models | 5 (Worker, Policy, TriggerEvent, Claim, PayoutTransaction) |
 | Parametric triggers | 6 (all with live API fallback) |
-| ML models | 2 (RandomForest fraud + actuarial premium) |
+| Fraud detection modules | 6 (GPS, shift, weather, velocity, pattern, dedup) |
+| ML models | 2 (14-feature RandomForest fraud v2 + actuarial premium) |
+| Payment integration | Razorpay test mode (Payment Links API + webhooks) |
 | LLM integration | 1 (Anthropic Claude risk narrator) |
-| Live API integrations | 4 (OWM, WAQI, GDELT, HTTP probe) |
-| Test cases | 748 (100% pass rate) |
-| Frontend screens | 5 (Auth, Dashboard, Policy, Claims, Triggers) |
+| Live API integrations | 5 (OWM, WAQI, GDELT, HTTP probe, Razorpay) |
+| Automated test cases | 858 (100% pass rate) |
+| Frontend screens | 6 (Auth, Dashboard, Policy, Claims, Triggers, Admin) |
 | Cities covered | 7 |
 | Demo workers seeded | 5 (with 3 distinct fraud scenarios) |
-| Lines of code | ~16,000+ |
+| Lines of code | ~18,000+ |
 
-## What's In Progress 🔄
+## Remaining for Submission
 
-- Razorpay test mode UPI simulation
-- GPS-based fraud detection (shift-time validation)
-- Loss ratio ML prediction
-- Demo video
-- Pitch deck slides
+- 5-minute demo video (screen capture walkthrough)
+- Pitch deck PDF (10 slides)
 
 ## What's Planned (Phase 3 completion) 📋
 

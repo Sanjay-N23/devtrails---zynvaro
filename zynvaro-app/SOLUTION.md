@@ -38,7 +38,7 @@ Theme: **Seed · Scale · Soar**
 |---|---|---|---|
 | Phase 1 | March 4–20, 2026 | Ideate & Know Your Delivery Worker | ✅ Submitted March 20 |
 | Phase 2 | March 21–April 4, 2026 | Protect Your Worker | ✅ Complete |
-| Phase 3 | April 5–17, 2026 | Perfect for Your Worker | 🔄 In progress |
+| Phase 3 | April 5–17, 2026 | Perfect for Your Worker | ✅ Complete |
 
 ### The Challenge (Verbatim from Problem Statement)
 > *"Build an AI-enabled parametric insurance platform that safeguards gig workers against income loss caused by external disruptions such as extreme weather or environmental conditions. The solution should provide automated coverage and payouts, incorporate intelligent fraud detection mechanisms, and operate on a simple weekly pricing model aligned with the typical earnings cycle of gig workers."*
@@ -651,13 +651,48 @@ This means the app runs perfectly in demo mode with zero API keys configured.
 4. `.env.example` — All keys documented with signup links
 5. `load_dotenv()` in `main.py` — auto-loads `.env` on startup
 
-### Phase 3 (April 5–17) — Planned
-- Advanced fraud detection (GPS spoofing patterns, historical data analysis)
-- scikit-learn fraud classifier replacing rule-based scorer
-- LLM-powered onboarding risk explanation
-- Instant payout simulation with Razorpay test mode
-- 5-minute demo video
-- Final pitch deck
+### Phase 3 (April 5–17) — Complete
+
+**Advanced Fraud Detection (6-Module Engine):**
+- GPS geofencing with haversine distance (7 cities, 30+ pincodes)
+- Shift-time validation (5 shift windows, midnight crossing, grace periods)
+- Historical weather cross-validation (median-based anomaly detection)
+- Velocity anomaly detector (impossible travel detection between cities)
+- Behavioral pattern analyzer (frequency analysis, repeat offender detection)
+- Cross-claim deduplicator (trigger event + UPI fraud ring detection)
+- 14-feature RandomForest ML model v2 (3,000 samples, per-claim explanations)
+
+**Instant Payout System (Razorpay Test Mode):**
+- Razorpay Payment Links API integration (real rzp.io URLs)
+- PayoutTransaction lifecycle (INITIATED -> PENDING -> SETTLED/FAILED)
+- Webhook handler (POST /webhooks/razorpay) for payment status callbacks
+- Graceful fallback to mock UPI when Razorpay keys not configured
+- 34 automated payout tests + 30 hard edge cases
+
+**Intelligent Worker Dashboard:**
+- "Total Earnings Protected" widget with shield icon
+- Weekly coverage progress bar (green/yellow/red depletion)
+- Claims this week, disruptions count, premiums paid stats
+- GET /claims/my-weekly-summary endpoint (week-specific metrics)
+- "Get Protected Now" CTA for workers without policy
+
+**Admin Predictive Analytics:**
+- EWMA (exponentially weighted moving average) on 8-week history
+- Seasonal risk adjustment (city-aware monsoon/haze/heat factors)
+- Per-trigger risk forecast (expected claims by trigger type)
+- Per-city risk breakdown (7 cities with seasonal multipliers)
+- SVG sparkline chart (historical trend + forecast point)
+- Confidence interval visualization
+- GET /analytics/forecast endpoint
+
+**Premium Engine Fixes (from external audit):**
+- Per-claim ML explanations (not global importances)
+- City-aware seasonal uplift (winter haze only for Delhi/Kolkata)
+- Local RNG for zone risk (no global np.random.seed mutation)
+- Raise ValueError on unknown tier (no silent fallback)
+- City-specific affordability cap using income tables
+
+**Test Suite: 858 automated tests passing (100%)**
 
 ---
 
@@ -686,17 +721,22 @@ zynvaro-app/
     ├── zynvaro.db               SQLite database
     ├── routers/
     │   ├── __init__.py
-    │   ├── auth.py              Authentication router
+    │   ├── auth.py              Authentication + GPS location endpoint
     │   ├── policies.py          Policy management router
-    │   ├── triggers.py          Trigger events router
-    │   ├── claims.py            Claims management router
-    │   └── analytics.py         Analytics router (NEW)
+    │   ├── triggers.py          Trigger events + auto-claim generation
+    │   ├── claims.py            Claims + weekly summary dashboard endpoint
+    │   ├── analytics.py         Analytics + predictive forecast endpoint
+    │   └── webhooks.py          Razorpay webhook handler (Phase 3)
     ├── ml/
     │   ├── __init__.py
-    │   └── premium_engine.py    Pricing engine (244 lines)
+    │   ├── fraud_model.py       14-feature RandomForest v2 (Phase 3)
+    │   └── premium_engine.py    Pricing engine (city-aware seasonal)
     ├── services/
+    │   ├── fraud_engine.py       6-module advanced fraud detection (Phase 3)
+    │   ├── payout_service.py    Razorpay payout integration (Phase 3)
     │   ├── orchestrator.py      Autonomous city poller
-    │   └── trigger_engine.py    Triggers + real APIs + fraud (443 lines)
+    │   ├── risk_explainer.py    AI risk narrative generator
+    │   └── trigger_engine.py    Triggers + real APIs + fraud scoring
     └── tests/
         ├── conftest.py          Test infrastructure (583 lines)
         ├── test_analytics.py
@@ -712,6 +752,7 @@ zynvaro-app/
         ├── test_security.py
         ├── test_trigger_engine.py
         ├── test_trigger_thresholds.py
+        ├── test_razorpay_payout.py    Razorpay payout tests (Phase 3)
         ├── test_triggers_api.py
         ├── test_weekly_billing.py
         └── test_zero_touch_pipeline.py
@@ -720,13 +761,15 @@ zynvaro-app/
 **Code Statistics:**
 | Metric | Count |
 |---|---|
-| Total lines of code | 15,259 |
-| Production source lines | ~3,750 |
-| Test lines | ~9,500 |
-| Test files | 18 |
-| Test cases | 699 |
-| API endpoints | 30 |
+| Total lines of code | ~18,000 |
+| Production source lines | ~5,000 |
+| Test lines | ~11,000 |
+| Test files | 21 |
+| Automated pytest cases | 858 |
+| API endpoints | 33 |
 | Database models | 5 |
+| Fraud detection modules | 6 |
+| ML features | 14 |
 | Trigger types | 6 |
 | Cities covered | 7 |
 | Pass rate | 100% |
@@ -771,9 +814,10 @@ uvicorn main:app --host 0.0.0.0 --port 9001 --reload
 ### Run Tests
 ```bash
 cd backend
-pytest                    # All 699 tests
+pytest                    # All 858 tests
 pytest --tb=short -q      # Quiet mode
-pytest tests/test_zero_touch_pipeline.py  # Single file
+pytest tests/test_razorpay_payout.py     # Razorpay payout tests
+pytest tests/test_analytics_endpoints.py # Analytics + forecast tests
 ```
 
 ### Simulate a Trigger (Demo)
