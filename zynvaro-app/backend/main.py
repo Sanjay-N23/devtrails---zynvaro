@@ -81,11 +81,14 @@ if os.path.exists(FRONTEND_DIR):
 # ─────────────────────────────────────────────────────────────────
 @app.get("/health", tags=["System"])
 def health_check():
+    rzp_id = os.getenv("RAZORPAY_KEY_ID", "")
     return {
         "status": "healthy",
         "service": "Zynvaro API",
         "version": "3.0.0",
         "phase": "DEVTrails 2026 — Phase 3: SOAR",
+        "razorpay": bool(rzp_id),
+        "razorpay_key_prefix": rzp_id[:12] + "..." if rzp_id else "not set",
     }
 
 
