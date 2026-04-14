@@ -483,3 +483,125 @@ def test_cancel_requires_auth(client, authed_client):
     # Attempt to delete without auth
     resp = client.delete(f"/policies/{policy_id}")
     assert resp.status_code == 401
+
+
+# ─── Razorpay Checkout Flow Tests (Phase 3: Premium Payment Gateway) ──
+
+class TestRazorpayCreateOrder:
+    def test_create_order_returns_200(self, authed_client):
+        resp = authed_client.post("/policies/create-order", json={"tier": "Basic Shield"})
+        assert resp.status_code == 200
+
+    def test_create_order_has_all_fields(self, authed_client):
+        resp = authed_client.post("/policies/create-order", json={"tier": "Basic Shield"})
+        data = resp.json()
+        for key in ["order_id", "amount", "currency", "key_id", "tier", "weekly_premium"]:
+            assert key in data, f"Missing: {key}"
+
+    def test_create_order_amount_in_paise(self, authed_client):
+        resp = authed_client.post("/policies/create-order", json={"tier": "Basic Shield"})
+        data = resp.json()
+        assert data["amount"] == int(data["weekly_premium"] * 100)
+
+    def test_create_order_mock_when_no_keys(self, authed_client):
+        # No RAZORPAY_KEY_ID in test env → returns MOCK_ORDER
+        resp = authed_client.post("/policies/create-order", json={"tier": "Basic Shield"})
+        assert resp.json()["order_id"] == "MOCK_ORDER"
+
+    def test_create_order_invalid_tier(self, authed_client):
+        resp = authed_client.post("/policies/create-order", json={"tier": "Invalid Tier"})
+        assert resp.status_code == 400
+
+    def test_create_order_unauthorized(self, client):
+        resp = client.post("/policies/create-order", json={"tier": "Basic Shield"})
+        assert resp.status_code == 401
+
+
+class TestRazorpayVerifyPayment:
+    def test_verify_payment_in_mock_mode_activates_policy(self, authed_client):
+        # In mock mode (no keys), signature verification auto-passes
+        resp = authed_client.post("/policies/verify-payment", json={
+            "razorpay_payment_id": "pay_MOCK123",
+            "razorpay_order_id": "MOCK_ORDER",
+            "razorpay_signature": "mock_signature",
+            "tier": "Basic Shield",
+        })
+        assert resp.status_code == 201
+        assert resp.json()["status"] == "active"
+        assert resp.json()["tier"] == "Basic Shield"
+
+    def test_verify_payment_invalid_tier(self, authed_client):
+        resp = authed_client.post("/policies/verify-payment", json={
+            "razorpay_payment_id": "pay_MOCK", "razorpay_order_id": "ord_MOCK",
+            "razorpay_signature": "sig_MOCK", "tier": "Invalid Tier",
+        })
+        assert resp.status_code == 400
+
+    def test_verify_payment_unauthorized(self, client):
+        resp = client.post("/policies/verify-payment", json={
+            "razorpay_payment_id": "p", "razorpay_order_id": "o",
+            "razorpay_signature": "s", "tier": "Basic Shield",
+        })
+        assert resp.status_code == 401
+
+    def test_verify_payment_creates_transaction_record(self, authed_client, test_db):
+        from models import PayoutTransaction, TransactionType
+        before = test_db.query(PayoutTransaction).count()
+        authed_client.post("/policies/verify-payment", json={
+            "razorpay_payment_id": "pay_TEST123",
+            "razorpay_order_id": "order_TEST123",
+            "razorpay_signature": "sig_TEST",
+            "tier": "Standard Guard",
+        })
+        test_db.commit()
+        after = test_db.query(PayoutTransaction).count()
+        assert after == before + 1
+        txn = test_db.query(PayoutTransaction).order_by(PayoutTransaction.id.desc()).first()
+        assert txn.transaction_type == TransactionType.PREMIUM_PAYMENT
+        assert txn.razorpay_payment_id == "pay_TEST123"
+
+
+class TestRazorpayRenewFlow:
+    def test_renew_order_requires_active_policy(self, authed_client):
+        resp = authed_client.post("/policies/renew-order")
+        assert resp.status_code == 404  # No active policy
+
+    def test_renew_order_with_active_policy(self, authed_client):
+        authed_client.post("/policies/", json={"tier": "Basic Shield"})
+        resp = authed_client.post("/policies/renew-order")
+        assert resp.status_code == 200
+        assert "order_id" in resp.json()
+
+    def test_verify_renewal_extends_policy(self, authed_client):
+        authed_client.post("/policies/", json={"tier": "Basic Shield"})
+        orig = authed_client.get("/policies/active").json()
+        orig_end = orig["end_date"]
+        resp = authed_client.post("/policies/verify-renewal", json={
+            "razorpay_payment_id": "pay_RENEW", "razorpay_order_id": "order_RENEW",
+            "razorpay_signature": "sig", "tier": "Basic Shield",
+        })
+        assert resp.status_code == 201
+        new_end = resp.json()["end_date"]
+        assert new_end > orig_end  # Extended
+
+
+class TestAdminTransactionsEndpoint:
+    def test_admin_transactions_200(self, authed_client):
+        resp = authed_client.get("/claims/admin/transactions")
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_admin_transactions_unauthorized(self, client):
+        assert client.get("/claims/admin/transactions").status_code == 401
+
+    def test_admin_transactions_shows_premium_payment(self, authed_client):
+        authed_client.post("/policies/verify-payment", json={
+            "razorpay_payment_id": "pay_AUDIT",
+            "razorpay_order_id": "order_AUDIT",
+            "razorpay_signature": "sig", "tier": "Basic Shield",
+        })
+        resp = authed_client.get("/claims/admin/transactions")
+        txns = resp.json()
+        premium_txns = [t for t in txns if t["transaction_type"] == "premium_payment"]
+        assert len(premium_txns) >= 1
+        assert premium_txns[0]["razorpay_payment_id"] == "pay_AUDIT"

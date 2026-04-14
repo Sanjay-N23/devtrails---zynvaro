@@ -206,19 +206,31 @@ class PayoutTransactionStatus(str, enum.Enum):
     REVERSED    = "reversed"     # Payment reversed / refunded
     RETRYING    = "retrying"     # Scheduled for retry after failure
 
+class TransactionType(str, enum.Enum):
+    PREMIUM_PAYMENT = "premium_payment"   # Worker pays premium to activate/renew policy
+    CLAIM_PAYOUT    = "claim_payout"      # Platform pays worker for approved claim
+
 class PayoutTransaction(Base):
     __tablename__ = "payout_transactions"
 
     id = Column(Integer, primary_key=True, index=True)
 
+    # Transaction type (Phase 3: distinguishes premium collection vs claim payout)
+    transaction_type = Column(String(20), default=TransactionType.CLAIM_PAYOUT, nullable=False)
+
     # Links
-    claim_id  = Column(Integer, ForeignKey("claims.id"), nullable=False, index=True)
+    claim_id  = Column(Integer, ForeignKey("claims.id"), nullable=True, index=True)   # Nullable for premium payments
+    policy_id = Column(Integer, ForeignKey("policies.id"), nullable=True, index=True)  # Links premium payments to policy
     worker_id = Column(Integer, ForeignKey("workers.id"), nullable=False, index=True)
 
-    # UPI payment identity
-    upi_id          = Column(String(50), nullable=False)           # e.g. worker@okaxis
+    # Payment identity
+    upi_id          = Column(String(50), nullable=True)            # UPI VPA (nullable for card/netbanking)
     upi_ref         = Column(String(80), nullable=True, index=True) # Gateway transaction ID (UTR/RRN)
     internal_txn_id = Column(String(40), unique=True, nullable=False) # Zynvaro-generated idempotency key
+
+    # Razorpay Checkout fields (Phase 3: premium payment flow)
+    razorpay_order_id   = Column(String(50), nullable=True)   # Razorpay Order ID from create-order
+    razorpay_payment_id = Column(String(50), nullable=True)   # Payment ID from Checkout callback
 
     # Amounts
     amount_requested = Column(Float, nullable=False)   # What was sent to the gateway
@@ -242,4 +254,5 @@ class PayoutTransaction(Base):
 
     # Relationships
     claim  = relationship("Claim", back_populates="transactions")
+    policy = relationship("Policy")
     worker = relationship("Worker")

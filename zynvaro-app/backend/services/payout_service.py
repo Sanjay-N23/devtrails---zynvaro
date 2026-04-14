@@ -232,6 +232,71 @@ def initiate_payout(claim: Claim, worker: Worker, db: Session) -> PayoutTransact
         return _create_mock_payout(claim, worker, db)
 
 
+# ─────────────────────────────────────────────────────────────────
+# PREMIUM PAYMENT (Worker → Zynvaro via Razorpay Checkout)
+# ─────────────────────────────────────────────────────────────────
+def create_razorpay_order(amount_inr: float, receipt: str, notes: dict) -> dict:
+    """Create a Razorpay Order for Checkout flow. Returns order dict or raises."""
+    client = get_razorpay_client()
+    if not client:
+        return {"id": "MOCK_ORDER", "amount": int(amount_inr * 100), "currency": "INR"}
+    return client.order.create({
+        "amount": int(amount_inr * 100),
+        "currency": "INR",
+        "receipt": receipt,
+        "notes": notes,
+    })
+
+
+def verify_razorpay_signature(payment_id: str, order_id: str, signature: str) -> bool:
+    """Verify Razorpay payment signature. Returns True or raises exception."""
+    client = get_razorpay_client()
+    if not client:
+        return True  # Mock mode — always valid
+    client.utility.verify_payment_signature({
+        "razorpay_order_id": order_id,
+        "razorpay_payment_id": payment_id,
+        "razorpay_signature": signature,
+    })
+    return True  # Raises SignatureVerificationError if invalid
+
+
+def create_premium_transaction(
+    worker_id: int, policy_id: int, amount: float,
+    razorpay_order_id: str, razorpay_payment_id: str, db: Session,
+) -> PayoutTransaction:
+    """Create a PayoutTransaction for premium payment (worker → Zynvaro)."""
+    from models import TransactionType
+    txn_id = f"ZYN-PREM-{uuid.uuid4().hex[:12].upper()}"
+    txn = PayoutTransaction(
+        transaction_type=TransactionType.PREMIUM_PAYMENT,
+        claim_id=None,
+        policy_id=policy_id,
+        worker_id=worker_id,
+        upi_id=None,
+        upi_ref=razorpay_payment_id,
+        internal_txn_id=txn_id,
+        razorpay_order_id=razorpay_order_id,
+        razorpay_payment_id=razorpay_payment_id,
+        amount_requested=amount,
+        amount_settled=amount,
+        currency="INR",
+        status=PayoutTransactionStatus.SETTLED,
+        gateway_name="razorpay" if is_razorpay_configured() else "mock",
+        gateway_payload=json.dumps({
+            "type": "premium_payment",
+            "order_id": razorpay_order_id,
+            "payment_id": razorpay_payment_id,
+            "signature_verified": True,
+            "amount_inr": amount,
+        }),
+        initiated_at=datetime.utcnow(),
+        settled_at=datetime.utcnow(),
+    )
+    db.add(txn)
+    return txn
+
+
 def get_payout_details(claim_id: int, db: Session) -> Optional[dict]:
     """
     Get the latest payout transaction details for a claim.

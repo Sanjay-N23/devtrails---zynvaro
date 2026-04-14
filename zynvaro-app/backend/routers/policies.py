@@ -32,6 +32,23 @@ class CreatePolicyRequest(BaseModel):
     tier: str
     upi_id: Optional[str] = None
 
+class CreateOrderRequest(BaseModel):
+    tier: str
+
+class CreateOrderResponse(BaseModel):
+    order_id: str
+    amount: int        # in paise
+    currency: str
+    key_id: str        # Razorpay public key for frontend Checkout.js
+    tier: str
+    weekly_premium: float
+
+class VerifyPaymentRequest(BaseModel):
+    razorpay_payment_id: str
+    razorpay_order_id: str
+    razorpay_signature: str
+    tier: str
+
 class PolicyResponse(BaseModel):
     id: int
     policy_number: str
@@ -236,6 +253,212 @@ def renew_policy(
     policy.seasonal_loading = breakdown["seasonal_loading_inr"]
     policy.claim_loading = breakdown["claim_loading_inr"]
     policy.streak_discount = abs(breakdown["streak_discount_inr"])
+
+    db.commit()
+    db.refresh(policy)
+    return policy
+
+
+# ─── Razorpay Checkout Flow (Phase 3: Premium Payment Gateway) ────
+
+@router.post("/create-order", response_model=CreateOrderResponse)
+def create_order(
+    req: CreateOrderRequest,
+    worker: Worker = Depends(get_current_worker),
+    db: Session = Depends(get_db),
+):
+    """Create a Razorpay Order for premium payment via Checkout popup."""
+    import os, uuid
+    from services.payout_service import is_razorpay_configured, create_razorpay_order
+
+    if req.tier not in TIER_CONFIG:
+        raise HTTPException(400, f"Invalid tier: {req.tier}")
+
+    pricing = calculate_premium(
+        req.tier, worker.pincode, worker.city,
+        worker.claim_history_count, worker.disruption_streak,
+    )
+    premium = pricing["weekly_premium"]
+    amount_paise = int(premium * 100)
+
+    if is_razorpay_configured():
+        order = create_razorpay_order(
+            amount_inr=premium,
+            receipt=f"ZYN-PREM-{uuid.uuid4().hex[:8].upper()}",
+            notes={"worker_id": str(worker.id), "tier": req.tier, "type": "premium_payment"},
+        )
+        return CreateOrderResponse(
+            order_id=order["id"],
+            amount=order["amount"],
+            currency=order.get("currency", "INR"),
+            key_id=os.getenv("RAZORPAY_KEY_ID", ""),
+            tier=req.tier,
+            weekly_premium=premium,
+        )
+    else:
+        return CreateOrderResponse(
+            order_id="MOCK_ORDER",
+            amount=amount_paise,
+            currency="INR",
+            key_id="",
+            tier=req.tier,
+            weekly_premium=premium,
+        )
+
+
+@router.post("/verify-payment", response_model=PolicyResponse, status_code=201)
+def verify_payment(
+    req: VerifyPaymentRequest,
+    worker: Worker = Depends(get_current_worker),
+    db: Session = Depends(get_db),
+):
+    """Verify Razorpay payment signature, then activate policy + log transaction."""
+    import json
+    from services.payout_service import verify_razorpay_signature, create_premium_transaction
+
+    # Verify signature
+    try:
+        verify_razorpay_signature(req.razorpay_payment_id, req.razorpay_order_id, req.razorpay_signature)
+    except Exception as e:
+        raise HTTPException(400, f"Payment verification failed: {e}")
+
+    if req.tier not in TIER_CONFIG:
+        raise HTTPException(400, f"Invalid tier: {req.tier}")
+
+    # Cancel existing active policy
+    existing = db.query(Policy).filter(
+        Policy.worker_id == worker.id, Policy.status == PolicyStatus.ACTIVE
+    ).first()
+    if existing:
+        existing.status = PolicyStatus.CANCELLED
+        existing.end_date = datetime.utcnow()
+
+    # Calculate premium and create policy
+    pricing = calculate_premium(
+        req.tier, worker.pincode, worker.city,
+        worker.claim_history_count, worker.disruption_streak,
+    )
+    cfg = TIER_CONFIG[req.tier]
+    bkd = pricing["breakdown"]
+    import random, string
+    pol_num = "ZYN-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
+
+    policy = Policy(
+        worker_id=worker.id,
+        policy_number=pol_num,
+        tier=req.tier,
+        status=PolicyStatus.ACTIVE,
+        weekly_premium=pricing["weekly_premium"],
+        base_premium=pricing["base_premium"],
+        max_daily_payout=cfg["max_daily"],
+        max_weekly_payout=cfg["max_weekly"],
+        zone_loading=bkd["zone_loading_inr"],
+        seasonal_loading=bkd["seasonal_loading_inr"],
+        claim_loading=bkd["claim_loading_inr"],
+        streak_discount=abs(bkd["streak_discount_inr"]),
+        start_date=datetime.utcnow(),
+        end_date=datetime.utcnow() + timedelta(days=7),
+    )
+    db.add(policy)
+    db.flush()
+
+    # Log transaction
+    create_premium_transaction(
+        worker_id=worker.id,
+        policy_id=policy.id,
+        amount=pricing["weekly_premium"],
+        razorpay_order_id=req.razorpay_order_id,
+        razorpay_payment_id=req.razorpay_payment_id,
+        db=db,
+    )
+
+    db.commit()
+    db.refresh(policy)
+    return policy
+
+
+@router.post("/renew-order", response_model=CreateOrderResponse)
+def renew_order(
+    worker: Worker = Depends(get_current_worker),
+    db: Session = Depends(get_db),
+):
+    """Create a Razorpay Order for policy renewal payment."""
+    import os, uuid
+    from services.payout_service import is_razorpay_configured, create_razorpay_order
+
+    policy = db.query(Policy).filter(
+        Policy.worker_id == worker.id, Policy.status == PolicyStatus.ACTIVE
+    ).first()
+    if not policy:
+        raise HTTPException(404, "No active policy to renew")
+
+    pricing = calculate_premium(
+        policy.tier, worker.pincode, worker.city,
+        worker.claim_history_count, worker.disruption_streak,
+    )
+    premium = pricing["weekly_premium"]
+
+    if is_razorpay_configured():
+        order = create_razorpay_order(
+            amount_inr=premium,
+            receipt=f"ZYN-RENEW-{uuid.uuid4().hex[:8].upper()}",
+            notes={"worker_id": str(worker.id), "tier": policy.tier, "type": "renewal_payment"},
+        )
+        return CreateOrderResponse(
+            order_id=order["id"], amount=order["amount"],
+            currency=order.get("currency", "INR"),
+            key_id=os.getenv("RAZORPAY_KEY_ID", ""),
+            tier=policy.tier, weekly_premium=premium,
+        )
+    else:
+        return CreateOrderResponse(
+            order_id="MOCK_ORDER", amount=int(premium * 100),
+            currency="INR", key_id="",
+            tier=policy.tier, weekly_premium=premium,
+        )
+
+
+@router.post("/verify-renewal", response_model=PolicyResponse, status_code=201)
+def verify_renewal(
+    req: VerifyPaymentRequest,
+    worker: Worker = Depends(get_current_worker),
+    db: Session = Depends(get_db),
+):
+    """Verify Razorpay renewal payment, then extend policy + log transaction."""
+    from services.payout_service import verify_razorpay_signature, create_premium_transaction
+
+    try:
+        verify_razorpay_signature(req.razorpay_payment_id, req.razorpay_order_id, req.razorpay_signature)
+    except Exception as e:
+        raise HTTPException(400, f"Renewal verification failed: {e}")
+
+    policy = db.query(Policy).filter(
+        Policy.worker_id == worker.id, Policy.status == PolicyStatus.ACTIVE
+    ).first()
+    if not policy:
+        raise HTTPException(404, "No active policy to renew")
+
+    # Recalculate premium and extend
+    pricing = calculate_premium(
+        policy.tier, worker.pincode, worker.city,
+        worker.claim_history_count, worker.disruption_streak,
+    )
+    policy.end_date = (policy.end_date or datetime.utcnow()) + timedelta(days=7)
+    policy.weekly_premium = pricing["weekly_premium"]
+    bkd = pricing["breakdown"]
+    policy.zone_loading = bkd["zone_loading_inr"]
+    policy.seasonal_loading = bkd["seasonal_loading_inr"]
+    policy.claim_loading = bkd["claim_loading_inr"]
+    policy.streak_discount = abs(bkd["streak_discount_inr"])
+
+    # Log transaction
+    create_premium_transaction(
+        worker_id=worker.id, policy_id=policy.id,
+        amount=pricing["weekly_premium"],
+        razorpay_order_id=req.razorpay_order_id,
+        razorpay_payment_id=req.razorpay_payment_id,
+        db=db,
+    )
 
     db.commit()
     db.refresh(policy)

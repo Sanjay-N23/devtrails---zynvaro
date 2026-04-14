@@ -18,6 +18,7 @@
 <meta property="og:type" content="website">
 <link rel="preload" as="image" href="/static/Zynvaro-bg-removed.png">
 <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
@@ -1249,6 +1250,13 @@ body {
     </div>
 
     <div class="card">
+      <div class="section-hd">Transaction Log <span class="info-tip">i<span class="tip-text">Complete audit trail of premium payments (worker pays Zynvaro) and claim payouts (Zynvaro pays worker). Every transaction includes Razorpay Payment ID for reconciliation.</span></span></div>
+      <div id="admin-txn-log" style="max-height:min(400px, 50vh);overflow-y:auto;">
+        <p class="text-muted text-sm">Loading...</p>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="section-hd">All Claims</div>
       <div id="admin-claims-list" style="max-height:min(560px, 60vh);overflow-y:auto;">
         <p class="text-muted text-sm">Loading...</p>
@@ -1317,6 +1325,65 @@ body {
     </div>
     <button class="wa-close-btn" onclick="closeWAModal()">
       📋 View My Claims →
+    </button>
+  </div>
+</div>
+
+<!-- PAYMENT SUCCESS MODAL (Phase 3: Razorpay Checkout) -->
+<div id="pay-modal-overlay" class="hidden" onclick="closePaymentModal()">
+  <div id="pay-modal" onclick="event.stopPropagation()" style="width:100%;max-width:480px;border-radius:28px 28px 0 0;overflow:hidden;box-shadow:0 -20px 60px rgba(0,0,0,.6);animation:sheetUp .35s cubic-bezier(.34,1.26,.64,1);max-height:85vh;overflow-y:auto;">
+    <div style="background:#16a34a;padding:20px 24px;text-align:center;">
+      <div style="width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      </div>
+      <div style="color:white;font-size:20px;font-weight:800;">Payment Successful</div>
+    </div>
+    <div style="background:var(--card);padding:24px;">
+      <div style="text-align:center;margin-bottom:16px;">
+        <div style="font-size:36px;font-weight:800;color:var(--green);" id="pay-amount">₹0</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">paid via Razorpay</div>
+      </div>
+      <div style="background:var(--card2);border-radius:12px;padding:14px;font-size:13px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="color:var(--muted);">Payment ID</span>
+          <span style="font-family:monospace;color:var(--text);" id="pay-id">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="color:var(--muted);">Plan</span>
+          <span style="color:var(--orange);font-weight:700;" id="pay-tier">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--muted);">Policy</span>
+          <span style="color:var(--text);" id="pay-policy">—</span>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:14px;font-size:12px;color:var(--muted);">
+        Coverage active for 7 days. You're now protected against income loss.
+      </div>
+    </div>
+    <button onclick="closePaymentModal()" style="width:100%;padding:17px;background:var(--green);color:white;font-size:15px;font-weight:700;border:none;cursor:pointer;">
+      View My Policy →
+    </button>
+  </div>
+</div>
+
+<!-- PAYMENT RECOVERY MODAL (edge case: payment OK but verify failed) -->
+<div id="pay-recovery-overlay" class="hidden" onclick="closeRecoveryModal()">
+  <div onclick="event.stopPropagation()" style="width:100%;max-width:480px;border-radius:28px 28px 0 0;overflow:hidden;box-shadow:0 -20px 60px rgba(0,0,0,.6);animation:sheetUp .35s cubic-bezier(.34,1.26,.64,1);">
+    <div style="background:#d97706;padding:20px 24px;text-align:center;">
+      <div style="color:white;font-size:20px;font-weight:800;">Payment Received</div>
+      <div style="color:rgba(255,255,255,.7);font-size:13px;margin-top:4px;">Policy activation pending</div>
+    </div>
+    <div style="background:var(--card);padding:24px;">
+      <p style="font-size:13px;color:var(--text);line-height:1.6;">Your payment was successful but policy activation encountered an issue. Your money is safe.</p>
+      <div style="background:var(--card2);border-radius:12px;padding:14px;margin-top:12px;">
+        <div style="font-size:11px;color:var(--muted);">Reference this Payment ID with support:</div>
+        <div style="font-family:monospace;font-size:14px;color:var(--orange);font-weight:700;margin-top:4px;" id="recovery-pay-id">—</div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:12px;">We'll activate your policy shortly. If not activated within 10 minutes, contact support with your Payment ID above.</p>
+    </div>
+    <button onclick="closeRecoveryModal()" style="width:100%;padding:17px;background:var(--orange);color:white;font-size:15px;font-weight:700;border:none;cursor:pointer;">
+      Got it
     </button>
   </div>
 </div>
@@ -1876,7 +1943,7 @@ function selectTier(tierName, quoteData) {
   const bk = quoteData.breakdown;
   document.getElementById('breakdown-tier-name').textContent = tierName;
   const activateBtn = document.getElementById('btn-activate-policy');
-  activateBtn.textContent = `✅ Activate ${tierName}`;
+  activateBtn.textContent = `Pay & Activate ${fmt(quoteData.weekly_premium)}`;
   activateBtn.disabled = false;
   activateBtn.style.opacity = '1';
 
@@ -1910,28 +1977,134 @@ function hidePremiumBreakdown() {
   selectedTier = null;
 }
 
-async function activatePolicy() {
-  if (!selectedTier) return;
-  const tierName = selectedTier.name; // capture before it gets cleared
-  const btn = document.getElementById('btn-activate-policy');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Activating...';
+// Fallback: direct activation without payment (when Razorpay unavailable)
+async function activatePolicyDirect(tierName) {
   try {
-    await api('/policies/', {
-      method: 'POST',
-      body: JSON.stringify({ tier: tierName })
-    });
-    toast(`✅ ${tierName} activated! You're now protected.`, 'success');
+    await api('/policies/', { method: 'POST', body: JSON.stringify({ tier: tierName }) });
+    toast(`${tierName} activated! You're now protected.`, 'success');
     hidePremiumBreakdown();
-    loadPolicyPage(); // recreates the DOM — btn reference is now stale
+    loadPolicyPage();
     const profile = await api('/auth/me');
     currentUser = profile;
     localStorage.setItem('zynvaro_user', JSON.stringify(profile));
   } catch(e) {
     toast(e.message, 'error');
-    // Re-enable button only on failure; on success the page has already reloaded
     const freshBtn = document.getElementById('btn-activate-policy');
-    if (freshBtn) { freshBtn.disabled = false; freshBtn.innerHTML = `✅ Activate ${tierName}`; }
+    if (freshBtn) { freshBtn.disabled = false; freshBtn.innerHTML = `Activate ${tierName}`; }
   }
+}
+
+// Phase 3: Razorpay Checkout flow for policy activation
+async function activatePolicy() {
+  if (!selectedTier) return;
+  const tierName = selectedTier.name;
+  const btn = document.getElementById('btn-activate-policy');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Processing...';
+
+  // Fallback: if Razorpay Checkout.js not loaded, use direct activation
+  if (typeof Razorpay === 'undefined') {
+    return activatePolicyDirect(tierName);
+  }
+
+  try {
+    // Step 1: Create Razorpay Order via backend
+    const order = await api('/policies/create-order', {
+      method: 'POST',
+      body: JSON.stringify({ tier: tierName })
+    });
+
+    // Fallback: backend returned mock order (no Razorpay keys)
+    if (!order.key_id || order.order_id === 'MOCK_ORDER') {
+      return activatePolicyDirect(tierName);
+    }
+
+    // Step 2: Open Razorpay Checkout popup
+    const options = {
+      key: order.key_id,
+      amount: order.amount,
+      currency: order.currency,
+      name: 'Zynvaro',
+      description: `${tierName} — Weekly Income Shield`,
+      image: '/static/Zynvaro-bg-removed.png',
+      order_id: order.order_id,
+      handler: async function(response) {
+        try {
+          const result = await api('/policies/verify-payment', {
+            method: 'POST',
+            body: JSON.stringify({
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+              tier: tierName,
+            })
+          });
+          showPaymentSuccessModal({
+            paymentId: response.razorpay_payment_id,
+            amount: order.weekly_premium,
+            tierName: tierName,
+            policyNumber: result.policy_number,
+          });
+          hidePremiumBreakdown();
+          const profile = await api('/auth/me');
+          currentUser = profile;
+          localStorage.setItem('zynvaro_user', JSON.stringify(profile));
+          loadPolicyPage();
+        } catch(e) {
+          showPaymentRecoveryModal(response.razorpay_payment_id);
+        }
+      },
+      modal: {
+        ondismiss: function() {
+          toast('Payment cancelled. Policy not activated.', 'info');
+          const freshBtn = document.getElementById('btn-activate-policy');
+          if (freshBtn) { freshBtn.disabled = false; freshBtn.innerHTML = `Activate ${tierName}`; }
+        }
+      },
+      prefill: {
+        name: currentUser?.full_name || '',
+        contact: currentUser?.phone || '',
+      },
+      theme: { color: '#FF6B35' },
+    };
+
+    const rzp = new Razorpay(options);
+    rzp.on('payment.failed', function(resp) {
+      toast('Payment failed: ' + (resp.error?.description || 'Unknown error'), 'error');
+      const freshBtn = document.getElementById('btn-activate-policy');
+      if (freshBtn) { freshBtn.disabled = false; freshBtn.innerHTML = `Activate ${tierName}`; }
+    });
+    rzp.open();
+
+  } catch(e) {
+    toast('Failed to initiate payment: ' + e.message, 'error');
+    const freshBtn = document.getElementById('btn-activate-policy');
+    if (freshBtn) { freshBtn.disabled = false; freshBtn.innerHTML = `Activate ${tierName}`; }
+  }
+}
+
+// Payment Success Modal
+function showPaymentSuccessModal({paymentId, amount, tierName, policyNumber}) {
+  document.getElementById('pay-amount').textContent = fmt(amount);
+  document.getElementById('pay-id').textContent = paymentId;
+  document.getElementById('pay-tier').textContent = tierName;
+  document.getElementById('pay-policy').textContent = policyNumber || '—';
+  document.getElementById('pay-modal-overlay').classList.remove('hidden');
+  if (typeof launchConfetti === 'function') launchConfetti();
+}
+
+function closePaymentModal() {
+  document.getElementById('pay-modal-overlay').classList.add('hidden');
+  document.querySelectorAll('.confetti-piece').forEach(c => c.remove());
+}
+
+// Payment Recovery Modal (edge case: payment OK but verify failed)
+function showPaymentRecoveryModal(paymentId) {
+  document.getElementById('recovery-pay-id').textContent = paymentId;
+  document.getElementById('pay-recovery-overlay').classList.remove('hidden');
+}
+
+function closeRecoveryModal() {
+  document.getElementById('pay-recovery-overlay').classList.add('hidden');
 }
 
 async function cancelPolicy() {
@@ -1948,16 +2121,72 @@ async function cancelPolicy() {
   loadPolicyPage();
 }
 
-async function renewPolicy() {
-  if (!activePolicyData) return;
+async function renewPolicyDirect() {
   try {
     const data = await api('/policies/renew', { method: 'POST' });
     toast(`Policy renewed! New expiry: ${new Date(data.end_date).toLocaleDateString('en-IN')}`, 'success');
   } catch(e) {
     toast(e.message || 'Renewal failed', 'error');
   }
-  // Always refresh — sync UI with actual server state even on error
   loadPolicyPage();
+}
+
+async function renewPolicy() {
+  if (!activePolicyData) return;
+  const tierName = activePolicyData.tier;
+
+  if (typeof Razorpay === 'undefined') {
+    return renewPolicyDirect();
+  }
+
+  try {
+    const order = await api('/policies/renew-order', { method: 'POST' });
+    if (!order.key_id || order.order_id === 'MOCK_ORDER') {
+      return renewPolicyDirect();
+    }
+
+    const options = {
+      key: order.key_id,
+      amount: order.amount,
+      currency: order.currency,
+      name: 'Zynvaro',
+      description: `${tierName} — Weekly Renewal`,
+      image: '/static/Zynvaro-bg-removed.png',
+      order_id: order.order_id,
+      handler: async function(response) {
+        try {
+          const result = await api('/policies/verify-renewal', {
+            method: 'POST',
+            body: JSON.stringify({
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+              tier: tierName,
+            })
+          });
+          showPaymentSuccessModal({
+            paymentId: response.razorpay_payment_id,
+            amount: order.weekly_premium,
+            tierName: tierName + ' (Renewed)',
+            policyNumber: result.policy_number,
+          });
+          loadPolicyPage();
+        } catch(e) {
+          showPaymentRecoveryModal(response.razorpay_payment_id);
+        }
+      },
+      modal: { ondismiss: function() { toast('Renewal cancelled.', 'info'); } },
+      prefill: { name: currentUser?.full_name || '', contact: currentUser?.phone || '' },
+      theme: { color: '#FF6B35' },
+    };
+    const rzp = new Razorpay(options);
+    rzp.on('payment.failed', function(resp) {
+      toast('Payment failed: ' + (resp.error?.description || 'Unknown'), 'error');
+    });
+    rzp.open();
+  } catch(e) {
+    toast('Renewal failed: ' + e.message, 'error');
+  }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -2261,13 +2490,14 @@ async function refreshAdminStats() {
 // ════════════════════════════════════════════════════════════════
 async function loadAdminPage() {
   try {
-    const [stats, allClaims, workers, cityStats, mlInfo, forecast] = await Promise.all([
+    const [stats, allClaims, workers, cityStats, mlInfo, forecast, transactions] = await Promise.all([
       api('/claims/admin/stats'),
       api('/claims/admin/all?limit=20'),
       api('/claims/admin/workers').catch(() => []),
       api('/analytics/cities').catch(() => []),
       api('/policies/ml-model-info').catch(() => null),
       api('/analytics/forecast').catch(() => null),
+      api('/claims/admin/transactions?limit=30').catch(() => []),
     ]);
 
     // Stats grid
@@ -2501,6 +2731,44 @@ async function loadAdminPage() {
       }
     }
 
+    // Transaction Log (Phase 3: Razorpay payment gateway audit trail)
+    const txnEl = document.getElementById('admin-txn-log');
+    if (txnEl) {
+      if (!transactions.length) {
+        txnEl.innerHTML = '<p class="text-muted text-sm" style="padding:8px 0;">No transactions yet.</p>';
+      } else {
+        txnEl.innerHTML = transactions.map(t => {
+          const isPremium = t.transaction_type === 'premium_payment';
+          const typeColor = isPremium ? '#22c55e' : '#3884f4';
+          const typeBg = isPremium ? 'rgba(34,197,94,0.12)' : 'rgba(56,132,244,0.12)';
+          const typeLabel = isPremium ? 'PREMIUM IN' : 'PAYOUT OUT';
+          const statusColor = t.status === 'settled' ? '#22c55e' : t.status === 'failed' ? '#ef4444' : '#f59e0b';
+          const gatewayBadge = t.gateway === 'razorpay' ?
+            '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(56,132,244,0.15);color:#3884f4;font-weight:700;">RAZORPAY</span>' :
+            '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.08);color:var(--muted);font-weight:700;">MOCK</span>';
+          const rzpId = t.razorpay_payment_id || t.upi_ref || '—';
+          const when = t.settled_at || t.initiated_at;
+          const whenStr = when ? new Date(when).toLocaleString('en-IN', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}) : '—';
+          return `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                  <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:${typeBg};color:${typeColor};font-weight:700;letter-spacing:0.3px;">${typeLabel}</span>
+                  ${gatewayBadge}
+                  <span style="font-size:10px;color:${statusColor};font-weight:700;text-transform:uppercase;">${t.status}</span>
+                </div>
+                <div style="font-family:monospace;font-size:11px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(rzpId)}</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:1px;">${whenStr}</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-weight:800;font-size:14px;color:${isPremium ? 'var(--green)' : 'var(--red)'};">${isPremium ? '+' : '-'}${fmt(t.amount)}</div>
+                <div style="font-size:10px;color:var(--muted);">Worker #${t.worker_id}</div>
+              </div>
+            </div>`;
+        }).join('');
+      }
+    }
+
     // All claims — isAdmin=true enables approve/reject buttons on reviewable claims
     document.getElementById('admin-claims-list').innerHTML = allClaims.length ?
       allClaims.map(c => renderClaimCard(c, true)).join('') :
@@ -2586,8 +2854,12 @@ window.addEventListener('load', () => {
 // ESC key closes modals
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    const modal = document.getElementById('wa-modal-overlay');
-    if (modal && !modal.classList.contains('hidden')) closeWAModal();
+    const waModal = document.getElementById('wa-modal-overlay');
+    if (waModal && !waModal.classList.contains('hidden')) closeWAModal();
+    const payModal = document.getElementById('pay-modal-overlay');
+    if (payModal && !payModal.classList.contains('hidden')) closePaymentModal();
+    const recoveryModal = document.getElementById('pay-recovery-overlay');
+    if (recoveryModal && !recoveryModal.classList.contains('hidden')) closeRecoveryModal();
   }
 });
 

@@ -372,6 +372,37 @@ def admin_stats(
     }
 
 
+@router.get("/admin/transactions")
+def admin_transactions(
+    limit: int = 50,
+    worker: Worker = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """[Admin] Complete transaction log (premium payments + claim payouts)."""
+    from models import PayoutTransaction
+    txns = (
+        db.query(PayoutTransaction)
+        .order_by(PayoutTransaction.initiated_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [{
+        "id": t.id,
+        "transaction_type": t.transaction_type,
+        "worker_id": t.worker_id,
+        "amount": t.amount_requested,
+        "amount_settled": t.amount_settled,
+        "status": t.status,
+        "gateway": t.gateway_name,
+        "razorpay_payment_id": t.razorpay_payment_id,
+        "razorpay_order_id": t.razorpay_order_id,
+        "internal_txn_id": t.internal_txn_id,
+        "upi_ref": t.upi_ref,
+        "initiated_at": t.initiated_at.isoformat() if t.initiated_at else None,
+        "settled_at": t.settled_at.isoformat() if t.settled_at else None,
+    } for t in txns]
+
+
 @router.patch("/{claim_id}/approve", response_model=ClaimResponse)
 def admin_approve_claim(
     claim_id: int,
