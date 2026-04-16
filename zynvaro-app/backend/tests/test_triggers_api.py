@@ -410,6 +410,78 @@ class TestAutoGenerateClaims:
         claims = test_db.query(Claim).filter(Claim.worker_id == worker_mumbai.id).all()
         assert claims == []
 
+    def test_simulate_uses_recent_gps_city_for_claim_eligibility(
+        self, authed_client, test_db, make_worker, make_policy
+    ):
+        worker = make_worker(
+            city="Bangalore",
+            home_lat=12.9716,
+            home_lng=77.5946,
+            last_known_lat=13.0827,
+            last_known_lng=80.2707,
+            last_location_at=datetime.utcnow(),
+        )
+        make_policy(worker=worker, status=PolicyStatus.ACTIVE)
+
+        with _patch_session_local(test_db):
+            resp = authed_client.post(
+                "/triggers/simulate",
+                json={"trigger_type": "Heavy Rainfall", "city": "Chennai"},
+            )
+        assert resp.status_code == 201
+
+        test_db.expire_all()
+        claims = test_db.query(Claim).filter(Claim.worker_id == worker.id).all()
+        assert len(claims) == 1
+        assert claims[0].trigger_event.city == "Chennai"
+        assert claims[0].gps_valid is True
+
+    def test_simulate_skips_registered_city_when_recent_gps_is_elsewhere(
+        self, authed_client, test_db, make_worker, make_policy
+    ):
+        worker = make_worker(
+            city="Bangalore",
+            home_lat=12.9716,
+            home_lng=77.5946,
+            last_known_lat=13.0827,
+            last_known_lng=80.2707,
+            last_location_at=datetime.utcnow(),
+        )
+        make_policy(worker=worker, status=PolicyStatus.ACTIVE)
+
+        with _patch_session_local(test_db):
+            resp = authed_client.post(
+                "/triggers/simulate",
+                json={"trigger_type": "Heavy Rainfall", "city": "Bangalore"},
+            )
+        assert resp.status_code == 201
+
+        test_db.expire_all()
+        claims = test_db.query(Claim).filter(Claim.worker_id == worker.id).all()
+        assert claims == []
+
+    def test_platform_outage_only_creates_claims_for_matching_platform(
+        self, authed_client, test_db, make_worker, make_policy
+    ):
+        blinkit_worker = authed_client.worker  # type: ignore[attr-defined]
+        make_policy(worker=blinkit_worker, status=PolicyStatus.ACTIVE)
+
+        swiggy_worker = make_worker(city="Bangalore", platform="Swiggy")
+        make_policy(worker=swiggy_worker, status=PolicyStatus.ACTIVE)
+
+        with _patch_session_local(test_db):
+            resp = authed_client.post(
+                "/triggers/simulate",
+                json={"trigger_type": "Platform Outage", "city": "Bangalore"},
+            )
+        assert resp.status_code == 201
+
+        test_db.expire_all()
+        blinkit_claims = test_db.query(Claim).filter(Claim.worker_id == blinkit_worker.id).all()
+        swiggy_claims = test_db.query(Claim).filter(Claim.worker_id == swiggy_worker.id).all()
+        assert len(blinkit_claims) == 1
+        assert swiggy_claims == []
+
     def test_simulate_skips_workers_with_zero_payout_for_tier(
         self, authed_client, test_db, make_worker, make_policy
     ):

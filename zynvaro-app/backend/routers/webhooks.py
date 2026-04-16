@@ -135,9 +135,17 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
 @router.get("/razorpay/health")
 def webhook_health():
     """Health check for webhook endpoint (useful for Razorpay webhook URL verification)."""
-    from services.payout_service import is_razorpay_configured
+    from services.payout_service import is_razorpay_configured, RAZORPAY_WEBHOOK_SECRET
     return {
         "status": "ok",
         "razorpay_configured": is_razorpay_configured(),
+        "webhook_secret_configured": bool(RAZORPAY_WEBHOOK_SECRET),
+        "signature_verification": "enabled" if RAZORPAY_WEBHOOK_SECRET else "disabled",
+        "premium_checkout_mode": "razorpay_checkout" if is_razorpay_configured() else "mock_order",
+        "claim_payout_mode": "demo_reference_flow",
+        "claim_payout_note": (
+            "Claim payouts currently record demo/test references for audit UX. "
+            "They are not a confirmed outbound bank-transfer rail."
+        ),
         "endpoint": "/webhooks/razorpay",
     }

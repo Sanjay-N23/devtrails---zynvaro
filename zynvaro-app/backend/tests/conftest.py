@@ -352,6 +352,11 @@ def make_worker(test_db):
         disruption_streak: int = 2,
         is_active: bool = True,
         is_admin: bool = False,
+        home_lat: float | None = None,
+        home_lng: float | None = None,
+        last_known_lat: float | None = None,
+        last_known_lng: float | None = None,
+        last_location_at: datetime | None = None,
     ) -> Worker:
         _counter["n"] += 1
         n = _counter["n"]
@@ -374,6 +379,11 @@ def make_worker(test_db):
             zone_risk_score=zone_risk_score,
             claim_history_count=claim_history_count,
             disruption_streak=disruption_streak,
+            home_lat=home_lat,
+            home_lng=home_lng,
+            last_known_lat=last_known_lat,
+            last_known_lng=last_known_lng,
+            last_location_at=last_location_at,
             is_active=is_active,
             is_admin=is_admin,
         )

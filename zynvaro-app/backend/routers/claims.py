@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
+import json
 
 from database import get_db
 from models import Claim, TriggerEvent, Policy, Worker, ClaimStatus, PolicyStatus
@@ -51,6 +52,9 @@ class ClaimResponse(BaseModel):
     payout_gateway: Optional[str] = None       # "razorpay" or "mock"
     payout_utr: Optional[str] = None           # Real UTR from Razorpay
     payout_status: Optional[str] = None        # "initiated" / "pending" / "settled" / "failed"
+    payout_reference: Optional[str] = None
+    payout_reference_label: Optional[str] = None
+    payout_note: Optional[str] = None
 
     # Nested trigger info
     trigger_type: Optional[str] = None
@@ -101,10 +105,79 @@ def _get_payout_gateway(claim: Claim) -> Optional[str]:
     return None
 
 def _get_payout_utr(claim: Claim) -> Optional[str]:
-    """Extract UTR from payment reference."""
+    """Return a real UTR only when the latest payout reference looks like one."""
+    latest = _get_latest_payout_txn(claim)
+    if latest and latest.upi_ref and str(latest.upi_ref).upper().startswith("UTR"):
+        return latest.upi_ref
+    return None
+
+def _get_latest_payout_txn(claim: Claim):
+    txns = claim.transactions
+    if not txns:
+        return None
+    return sorted(txns, key=lambda t: t.initiated_at or datetime.min, reverse=True)[0]
+
+def _get_gateway_payload(txn) -> dict:
+    if not txn or not txn.gateway_payload:
+        return {}
+    try:
+        return json.loads(txn.gateway_payload)
+    except Exception:
+        return {}
+
+def _get_payout_reference_kind(claim: Claim) -> Optional[str]:
+    latest = _get_latest_payout_txn(claim)
+    if latest:
+        payload = _get_gateway_payload(latest)
+        if latest.gateway_name == "razorpay":
+            if latest.razorpay_payment_id:
+                return "payment_id"
+            if payload.get("payment_link_id") or str(latest.upi_ref or "").startswith("plink_"):
+                return "payment_link_id"
+            if latest.upi_ref and str(latest.upi_ref).upper().startswith("UTR"):
+                return "utr"
+            return "reference"
+        if latest.gateway_name == "mock":
+            return "mock_reference"
+
     ref = claim.payment_ref or ""
     if ref.startswith("RZP-"):
-        return ref[4:]  # Strip "RZP-" prefix
+        return "reference"
+    if ref.startswith("MOCK-") or ref.startswith("MANUAL-"):
+        return "mock_reference"
+    return None
+
+def _get_payout_reference(claim: Claim) -> Optional[str]:
+    latest = _get_latest_payout_txn(claim)
+    if latest:
+        if latest.razorpay_payment_id:
+            return latest.razorpay_payment_id
+        if latest.upi_ref:
+            return latest.upi_ref
+    ref = claim.payment_ref or ""
+    if ref.startswith("RZP-"):
+        return ref[4:]
+    return ref or None
+
+def _get_payout_reference_label(claim: Claim) -> Optional[str]:
+    kind = _get_payout_reference_kind(claim)
+    return {
+        "utr": "UTR",
+        "payment_id": "Payment ID",
+        "payment_link_id": "Payment Link ID",
+        "reference": "Reference",
+        "mock_reference": "Mock Ref",
+    }.get(kind)
+
+def _get_payout_note(claim: Claim) -> Optional[str]:
+    kind = _get_payout_reference_kind(claim)
+    gateway = _get_payout_gateway(claim)
+    if gateway == "razorpay" and kind == "payment_link_id":
+        return "Razorpay test reference recorded for demo tracking. This is not a confirmed outbound bank-transfer UTR."
+    if gateway == "mock":
+        return "Mock payout reference recorded in demo mode."
+    if gateway == "razorpay" and kind in {"payment_id", "utr", "reference"}:
+        return "Gateway settlement reference recorded."
     return None
 
 def _get_payout_status(claim: Claim) -> Optional[str]:
@@ -112,9 +185,8 @@ def _get_payout_status(claim: Claim) -> Optional[str]:
     if not claim.paid_at and not claim.payment_ref:
         return None
     # Try to get from PayoutTransaction
-    txns = claim.transactions
-    if txns:
-        latest = sorted(txns, key=lambda t: t.initiated_at or datetime.min, reverse=True)[0]
+    latest = _get_latest_payout_txn(claim)
+    if latest:
         return latest.status
     # Infer from claim
     if claim.paid_at:
@@ -154,6 +226,9 @@ def enrich_claim(claim: Claim) -> ClaimResponse:
         payout_gateway=_get_payout_gateway(claim),
         payout_utr=_get_payout_utr(claim),
         payout_status=_get_payout_status(claim),
+        payout_reference=_get_payout_reference(claim),
+        payout_reference_label=_get_payout_reference_label(claim),
+        payout_note=_get_payout_note(claim),
         # Nested trigger/policy info
         trigger_type=trigger.trigger_type if trigger else None,
         trigger_city=trigger.city if trigger else None,
@@ -382,27 +457,73 @@ def admin_transactions(
 ):
     """[Admin] Complete transaction log (premium payments + claim payouts)."""
     from models import PayoutTransaction
+
+    def txn_reference_meta(txn):
+        payload = _get_gateway_payload(txn)
+        if txn.transaction_type == "premium_payment":
+            return (
+                txn.razorpay_payment_id or txn.upi_ref or txn.razorpay_order_id or txn.internal_txn_id,
+                "Payment ID" if txn.razorpay_payment_id else "Order ID",
+                "premium_checkout",
+                "Premium collected through Razorpay Checkout.",
+            )
+        if txn.gateway_name == "razorpay" and (payload.get("payment_link_id") or str(txn.upi_ref or "").startswith("plink_")):
+            return (
+                txn.upi_ref or payload.get("payment_link_id") or txn.internal_txn_id,
+                "Payment Link ID",
+                "razorpay_test_reference",
+                "Razorpay test reference stored for demo payout tracking; not a bank-transfer UTR.",
+            )
+        if txn.gateway_name == "razorpay" and txn.upi_ref and str(txn.upi_ref).upper().startswith("UTR"):
+            return (
+                txn.upi_ref,
+                "UTR",
+                "utr",
+                "Gateway settlement reference recorded.",
+            )
+        if txn.gateway_name == "mock":
+            return (
+                txn.upi_ref or txn.internal_txn_id,
+                "Mock Ref",
+                "mock_reference",
+                "Mock payout reference stored in demo mode.",
+            )
+        return (
+            txn.upi_ref or txn.razorpay_payment_id or txn.razorpay_order_id or txn.internal_txn_id,
+            "Reference",
+            "reference",
+            "Gateway reference stored.",
+        )
+
     txns = (
         db.query(PayoutTransaction)
         .order_by(PayoutTransaction.initiated_at.desc())
         .limit(limit)
         .all()
     )
-    return [{
-        "id": t.id,
-        "transaction_type": t.transaction_type,
-        "worker_id": t.worker_id,
-        "amount": t.amount_requested,
-        "amount_settled": t.amount_settled,
-        "status": t.status,
-        "gateway": t.gateway_name,
-        "razorpay_payment_id": t.razorpay_payment_id,
-        "razorpay_order_id": t.razorpay_order_id,
-        "internal_txn_id": t.internal_txn_id,
-        "upi_ref": t.upi_ref,
-        "initiated_at": t.initiated_at.isoformat() if t.initiated_at else None,
-        "settled_at": t.settled_at.isoformat() if t.settled_at else None,
-    } for t in txns]
+    result = []
+    for t in txns:
+        display_reference, reference_label, reference_kind, flow_note = txn_reference_meta(t)
+        result.append({
+            "id": t.id,
+            "transaction_type": t.transaction_type,
+            "worker_id": t.worker_id,
+            "amount": t.amount_requested,
+            "amount_settled": t.amount_settled,
+            "status": t.status,
+            "gateway": t.gateway_name,
+            "razorpay_payment_id": t.razorpay_payment_id,
+            "razorpay_order_id": t.razorpay_order_id,
+            "internal_txn_id": t.internal_txn_id,
+            "upi_ref": t.upi_ref,
+            "display_reference": display_reference,
+            "reference_label": reference_label,
+            "reference_kind": reference_kind,
+            "flow_note": flow_note,
+            "initiated_at": t.initiated_at.isoformat() if t.initiated_at else None,
+            "settled_at": t.settled_at.isoformat() if t.settled_at else None,
+        })
+    return result
 
 
 @router.patch("/{claim_id}/approve", response_model=ClaimResponse)

@@ -59,6 +59,10 @@ class SimulateResponse(BaseModel):
     description: str
     is_simulated: bool = True
     current_reading: Optional[Dict] = None
+    requester_eligible: bool = True
+    requester_effective_city: Optional[str] = None
+    requester_location_source: Optional[str] = None
+    requester_eligibility_reason: Optional[str] = None
 
 
 def _build_live_source_status() -> Dict[str, str]:
@@ -77,6 +81,71 @@ def _build_live_source_status() -> Dict[str, str]:
         ),
         "platform": "Live HTTP reachability probe",
         "civil": "Live GDELT news scan",
+    }
+
+
+def _worker_trigger_eligibility(worker: Worker, trigger_city: str, trigger_type: str, platform: Optional[str] = None) -> dict:
+    from services.fraud_engine import get_worker_location_context, validate_gps_zone
+
+    location = get_worker_location_context(worker)
+    effective_city = location.get("effective_city") or worker.city
+    source = location.get("source") or "registered_city"
+    lat = location.get("lat")
+    lng = location.get("lng")
+
+    if trigger_type == "Platform Outage" and platform:
+        if (worker.platform or "").lower() != platform.lower():
+            return {
+                "eligible": False,
+                "effective_city": effective_city,
+                "location_source": source,
+                "claim_lat": lat,
+                "claim_lng": lng,
+                "reason": f"Worker platform '{worker.platform}' does not match monitored platform '{platform}'.",
+            }
+
+    if source == "recent_gps_unmatched":
+        return {
+            "eligible": False,
+            "effective_city": effective_city,
+            "location_source": source,
+            "claim_lat": lat,
+            "claim_lng": lng,
+            "reason": "Recent device GPS does not map to a supported trigger city, so the event cannot auto-generate a claim.",
+        }
+
+    if lat is not None and lng is not None:
+        zone = validate_gps_zone(lat, lng, trigger_city)
+        if not zone["valid"]:
+            return {
+                "eligible": False,
+                "effective_city": effective_city,
+                "location_source": source,
+                "claim_lat": lat,
+                "claim_lng": lng,
+                "reason": (
+                    f"Latest worker location is {zone['distance_km']}km away from the {trigger_city} trigger zone "
+                    f"(max {zone['max_radius_km']}km)."
+                ),
+            }
+
+    if not effective_city or effective_city.lower() != trigger_city.lower():
+        return {
+            "eligible": False,
+            "effective_city": effective_city,
+            "location_source": source,
+            "claim_lat": lat,
+            "claim_lng": lng,
+            "reason": f"Worker is resolved to {effective_city or 'an unknown city'}, not {trigger_city}.",
+        }
+
+    return {
+        "eligible": True,
+        "effective_city": effective_city,
+        "location_source": source,
+        "claim_lat": lat,
+        "claim_lng": lng,
+        "reason": f"Worker location matches {trigger_city} via {source}.",
     }
 
 
@@ -172,7 +241,7 @@ async def live_check(
         # Zero-touch: auto-generate claims for all active policyholders in this city
         if background_tasks:
             background_tasks.add_task(
-                _auto_generate_claims, event.id, city, t["trigger_type"], db, is_simulated=False
+                _auto_generate_claims, event.id, city, t["trigger_type"], db, is_simulated=False, platform=platform
             )
 
     return LiveCheckResponse(
@@ -212,6 +281,13 @@ async def simulate_trigger_event(
             status_code=400,
             detail=f"Invalid city '{req.city}'. Must be one of: {', '.join(valid_cities)}",
         )
+
+    requester_gate = _worker_trigger_eligibility(
+        current_worker,
+        req.city,
+        req.trigger_type,
+        platform=current_worker.platform,
+    )
     t = simulate_trigger(req.trigger_type, req.city)
 
     # Fetch current real reading for comparison (what-if framing)
@@ -274,7 +350,15 @@ async def simulate_trigger_event(
     db.refresh(event)
 
     # Auto-generate claims for eligible workers in this city
-    background_tasks.add_task(_auto_generate_claims, event.id, req.city, req.trigger_type, db, is_simulated=True)
+    background_tasks.add_task(
+        _auto_generate_claims,
+        event.id,
+        req.city,
+        req.trigger_type,
+        db,
+        is_simulated=True,
+        platform=current_worker.platform,
+    )
 
     return {
         "message": f"Trigger '{req.trigger_type}' simulated in {req.city}",
@@ -284,6 +368,10 @@ async def simulate_trigger_event(
         "description": t["description"],
         "is_simulated": True,
         "current_reading": current_reading,
+        "requester_eligible": requester_gate["eligible"],
+        "requester_effective_city": requester_gate["effective_city"],
+        "requester_location_source": requester_gate["location_source"],
+        "requester_eligibility_reason": requester_gate["reason"],
     }
 
 
@@ -423,7 +511,14 @@ def list_trigger_types():
 
 
 # ─── Background: Auto-generate claims after trigger fires ───────
-def _auto_generate_claims(event_id: int, city: str, trigger_type: str, db: Session, is_simulated: bool = False):
+def _auto_generate_claims(
+    event_id: int,
+    city: str,
+    trigger_type: str,
+    db: Session,
+    is_simulated: bool = False,
+    platform: Optional[str] = None,
+):
     """
     Find all active workers + policies in the triggered city.
     Create claims automatically (zero-touch).
@@ -444,18 +539,25 @@ def _auto_generate_claims(event_id: int, city: str, trigger_type: str, db: Sessi
         if event.expires_at and event.expires_at < datetime.utcnow():
             return
 
-        # Find active policies in this city
+        # Find active policies and apply location/platform eligibility in Python.
+        # We cannot rely on Worker.city alone because recent device GPS may place
+        # the worker in a different supported city than their original profile city.
         active_policies = (
             db.query(Policy)
             .join(Worker)
-            .filter(Worker.city == city, Policy.status == PolicyStatus.ACTIVE)
+            .filter(Policy.status == PolicyStatus.ACTIVE, Worker.is_active == True)
             .all()
         )
 
         claims_created = 0
         for policy in active_policies:
             worker = policy.worker
-            payout = get_payout_amount(trigger_type, policy.tier, worker.city)
+            eligibility = _worker_trigger_eligibility(worker, city, trigger_type, platform=platform)
+            if not eligibility["eligible"]:
+                continue
+
+            payout_city = eligibility.get("effective_city") or worker.city
+            payout = get_payout_amount(trigger_type, policy.tier, payout_city)
             if payout <= 0:
                 continue  # Tier doesn't cover this trigger
 
@@ -493,16 +595,9 @@ def _auto_generate_claims(event_id: int, city: str, trigger_type: str, db: Sessi
                 Claim.created_at >= (datetime.utcnow() - timedelta(days=7))
             ).count()
 
-            # Simulate worker GPS (home coords ± small jitter for realism)
-            import random as _rnd
-            claim_lat = None
-            claim_lng = None
-            if worker.home_lat is not None and worker.home_lng is not None:
-                claim_lat = worker.home_lat + _rnd.uniform(-0.01, 0.01)  # ±1km jitter
-                claim_lng = worker.home_lng + _rnd.uniform(-0.01, 0.01)
-            elif worker.last_known_lat is not None:
-                claim_lat = worker.last_known_lat + _rnd.uniform(-0.01, 0.01)
-                claim_lng = worker.last_known_lng + _rnd.uniform(-0.01, 0.01)
+            # Use the freshest resolved worker location for fraud checks and eligibility.
+            claim_lat = eligibility.get("claim_lat")
+            claim_lng = eligibility.get("claim_lng")
 
             # Advanced fraud scoring (Phase 3: 6-module engine + 14-feature ML)
             fraud = compute_authenticity_score(

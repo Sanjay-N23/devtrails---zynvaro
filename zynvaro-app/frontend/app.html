@@ -1300,7 +1300,7 @@ body {
     </div>
 
     <div class="card">
-      <div class="section-hd">Transaction Log <span class="info-tip">i<span class="tip-text">Complete audit trail of premium payments (worker pays Zynvaro) and claim payouts (Zynvaro pays worker). Every transaction includes Razorpay Payment ID for reconciliation.</span></span></div>
+      <div class="section-hd">Transaction Log <span class="info-tip">i<span class="tip-text">Complete audit trail of premium payments and claim disbursement records. Premiums use Razorpay Checkout IDs; claim rows may show mock refs or Razorpay test references in demo mode.</span></span></div>
       <div id="admin-txn-log" style="max-height:min(400px, 50vh);overflow-y:auto;">
         <p class="text-muted text-sm">Loading...</p>
       </div>
@@ -1374,9 +1374,9 @@ body {
           ✅ <b>Zero-Touch Claim Created!</b><br>
           <span id="wa-claim-num" style="color:#25d366;font-size:12px">CLM-AUTO-XXXXXX</span>
         </div>
-        <div class="wa-payout-highlight" id="wa-payout-amt">₹600 Auto-Credited</div>
+        <div class="wa-payout-highlight" id="wa-payout-amt">₹600 Demo Payout Recorded</div>
         <div class="wa-bubble-text" style="font-size:12px;color:rgba(255,255,255,.55)">
-          💳 Sent to your UPI ID on file.<br>
+          Razorpay test or mock reference logged for the demo flow.<br>
           No forms. No calls. No waiting.
         </div>
         <div class="wa-bubble-time" id="wa-time2">Today, 4:32 PM</div>
@@ -1536,7 +1536,15 @@ function scoreColor(s) {
 }
 
 function currentWorkerCity() {
-  return currentUser?.city || 'Bangalore';
+  return currentUser?.effective_city || currentUser?.city || 'Bangalore';
+}
+
+function currentWorkerCityLabel() {
+  if (!currentUser) return currentWorkerCity();
+  if (currentUser.effective_city && currentUser.effective_city !== currentUser.city) {
+    return `${currentUser.effective_city} (live)`;
+  }
+  return currentWorkerCity();
 }
 
 function currentWorkerPlatform() {
@@ -1551,10 +1559,10 @@ function currentCityTriggerHistoryPath(limit = 5) {
   return `/triggers/?${params.toString()}`;
 }
 
-function currentLiveTriggerPath() {
+function currentLiveTriggerPath(cityOverride = null, platformOverride = null) {
   const params = new URLSearchParams({
-    city: currentWorkerCity(),
-    platform: currentWorkerPlatform(),
+    city: cityOverride || currentWorkerCity(),
+    platform: platformOverride || currentWorkerPlatform(),
   });
   return `/triggers/live?${params.toString()}`;
 }
@@ -1562,13 +1570,13 @@ function currentLiveTriggerPath() {
 function paymentModeCopy() {
   return MOCK_PAYMENT_FALLBACK_ENABLED
     ? 'Demo payment mode is enabled. Direct activation or renewal can happen without Razorpay Checkout.'
-    : 'Premiums are charged through Razorpay Checkout. If the popup cannot open, the policy will not auto-activate or auto-renew.';
+    : 'Premiums are charged through Razorpay Checkout in test mode. If the popup cannot open, the policy will not auto-activate or auto-renew.';
 }
 
 function renewModeCopy() {
   return MOCK_PAYMENT_FALLBACK_ENABLED
     ? 'Demo payment mode is enabled. Renewals may fall back to a direct extension for testing.'
-    : 'Renewals open Razorpay Checkout manually. No automatic debit runs in the background.';
+    : 'Renewals open Razorpay Checkout manually in test mode. No automatic debit runs in the background.';
 }
 
 function updatePaymentModeNotice() {
@@ -1712,11 +1720,11 @@ function showApp() {
     document.getElementById('nav-avatar').textContent = first[0];
     document.getElementById('header-user-name').textContent = first;
     document.getElementById('header-user-city').textContent =
-      `${currentUser.city} · ${currentUser.platform}`;
+      `${currentWorkerCityLabel()} · ${currentUser.platform}`;
     // Profile menu details
     document.getElementById('pm-name').textContent = currentUser.full_name;
     document.getElementById('pm-detail').textContent =
-      `${currentUser.city} · ${currentUser.platform} · ${currentUser.shift}`;
+      `${currentWorkerCityLabel()} · ${currentUser.platform} · ${currentUser.shift}`;
 
     const hour = new Date().getHours();
     const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -1733,6 +1741,32 @@ function showApp() {
       api('/auth/me/location', {
         method: 'POST',
         body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      }).then(loc => {
+        currentUser = {
+          ...currentUser,
+          last_known_lat: loc.lat,
+          last_known_lng: loc.lng,
+          last_location_at: loc.last_location_at,
+          effective_city: loc.effective_city || currentUser?.effective_city || currentUser?.city,
+          location_source: loc.location_source || currentUser?.location_source,
+          location_fresh: typeof loc.location_fresh === 'boolean' ? loc.location_fresh : currentUser?.location_fresh,
+          location_age_minutes: loc.location_age_minutes ?? currentUser?.location_age_minutes,
+        };
+        localStorage.setItem('zynvaro_user', JSON.stringify(currentUser));
+
+        const headerCity = document.getElementById('header-user-city');
+        if (headerCity) headerCity.textContent = `${currentWorkerCityLabel()} · ${currentWorkerPlatform()}`;
+        const profileDetail = document.getElementById('pm-detail');
+        if (profileDetail) profileDetail.textContent = `${currentWorkerCityLabel()} · ${currentWorkerPlatform()} · ${currentUser.shift}`;
+        if (document.getElementById('page-dashboard')?.classList.contains('active')) {
+          loadDashboard();
+        }
+        if (document.getElementById('page-triggers')?.classList.contains('active')) {
+          syncTriggerPageContext();
+          loadLiveConditions();
+          loadTriggerLiveStatus();
+          loadTriggerEvents();
+        }
       }).catch(() => {});  // Silent — GPS is optional
     }, () => {}, { timeout: 5000, maximumAge: 300000 });
   }
@@ -1874,7 +1908,7 @@ async function loadDashboard() {
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
           </div>
           <div class="list-body">
-            <div class="list-title">${esc(currentUser.city)} · ${esc(currentUser.pincode)}</div>
+            <div class="list-title">${esc(currentWorkerCityLabel())} · ${esc(currentUser.pincode)}</div>
             <div class="list-sub">${esc(currentUser.platform)} · ${esc(currentUser.shift)}</div>
           </div>
           <div class="list-right">
@@ -1894,7 +1928,7 @@ async function loadDashboard() {
     }
 
     // ── Trigger feed ──
-    const cityName = currentUser?.city || 'your city';
+    const cityName = currentWorkerCity();
     renderTriggerFeed(triggers, 'dash-trigger-feed', {
       emptyMessage: `No saved disruptions in ${cityName} yet. Open Triggers to run a live check.`,
     });
@@ -2014,7 +2048,7 @@ async function loadTriggers() {
 // ════════════════════════════════════════════════════════════════
 function syncTriggerPageContext() {
   const simCity = document.getElementById('sim-city');
-  if (simCity && currentUser?.city) simCity.value = currentUser.city;
+  if (simCity && currentWorkerCity()) simCity.value = currentWorkerCity();
 
   const liveEl = document.getElementById('trigger-live-status');
   if (liveEl && currentUser) {
@@ -2086,10 +2120,10 @@ async function loadTriggerLiveStatus() {
 // ════════════════════════════════════════════════════════════════
 // LIVE CONDITIONS (real-time weather / AQI / platform readings)
 // ════════════════════════════════════════════════════════════════
-function conditionsApiPath() {
+function conditionsApiPath(cityOverride = null, platformOverride = null) {
   const params = new URLSearchParams({
-    city: currentWorkerCity(),
-    platform: currentWorkerPlatform(),
+    city: cityOverride || currentWorkerCity(),
+    platform: platformOverride || currentWorkerPlatform(),
   });
   return `/triggers/conditions?${params.toString()}`;
 }
@@ -2679,7 +2713,7 @@ async function updateSimComparison() {
   panel.innerHTML = `<p class="text-muted text-sm">Fetching current ${esc(trigType)} reading for ${esc(city)}...</p>`;
 
   try {
-    const data = await api(conditionsApiPath());
+    const data = await api(conditionsApiPath(city, currentWorkerPlatform()));
     _lastSimConditions = data;
     const cfg = SIM_VALUES[trigType] || { sim: 100, unit: '', field: '' };
     const threshold = SIM_THRESHOLDS[trigType] || 100;
@@ -2756,6 +2790,7 @@ async function simulateTrigger() {
   const city     = document.getElementById('sim-city').value;
   const btn = document.getElementById('btn-simulate-trigger');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Simulating threshold crossing...';
+  const requestStartedAt = Date.now();
   try {
     const res = await api('/triggers/simulate', {
       method: 'POST',
@@ -2775,22 +2810,33 @@ async function simulateTrigger() {
     (async () => {
       let payoutAmt = 0;
       let claimNum = 'CLM-AUTO-' + Math.random().toString(36).substr(2,6).toUpperCase();
+      let matchedClaim = null;
       const delays = [1500, 2000, 3000]; // retry at 1.5s, 3.5s, 6.5s
       for (const delay of delays) {
         await new Promise(r => setTimeout(r, delay));
         if (!document.getElementById('page-triggers').classList.contains('active')) return;
         try {
           const claims = await api('/claims/');
-          const newest = claims[0];
-          if (newest && newest.trigger_type === trigType) {
-            payoutAmt = newest.payout_amount;
-            claimNum = newest.claim_number;
+          matchedClaim = claims.find(c =>
+            c.trigger_type === trigType &&
+            c.trigger_city === city &&
+            new Date(c.created_at).getTime() >= requestStartedAt - 3000
+          );
+          if (matchedClaim) {
+            payoutAmt = matchedClaim.paid_at ? matchedClaim.payout_amount : 0;
+            claimNum = matchedClaim.claim_number;
             break;
           }
         } catch(_) {}
       }
       if (!document.getElementById('page-triggers').classList.contains('active')) return;
-      showWAModal(trigType, city, payoutAmt, claimNum);
+      if (matchedClaim) {
+        showWAModal(trigType, city, payoutAmt, claimNum);
+      } else {
+        const reason = res.requester_eligibility_reason
+          || `No claim was created for your account because your current location or platform does not match ${city}.`;
+        toast(reason, res.requester_eligible === false ? 'info' : 'error');
+      }
     })();
 
   } catch(e) {
@@ -2938,9 +2984,11 @@ function renderClaimCard(c, isAdmin = false) {
       ${c.paid_at ? `<div class="text-xs text-green" style="margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         <span>${c.payout_gateway === 'razorpay' ? '🟢' : c.payout_status === 'settled' ? '🟢' : c.payout_status === 'failed' ? '🔴' : '🟡'}</span>
         <span>Paid ${timeAgo(c.paid_at)}</span>
-        <span style="padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:0.3px;${c.payout_gateway === 'razorpay' ? 'background:rgba(56,132,244,0.15);color:#3884f4;' : 'background:rgba(255,255,255,0.08);color:var(--muted);'}">${c.payout_gateway === 'razorpay' ? 'RAZORPAY' : 'MOCK UPI'}</span>
-        ${c.payout_utr ? `<span style="font-family:monospace;font-size:10px;color:var(--muted);">UTR: ${esc(c.payout_utr)}</span>` : `<span style="font-size:10px;color:var(--muted);">${esc(c.payment_ref || '')}</span>`}
+        <span style="padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:0.3px;${c.payout_gateway === 'razorpay' ? 'background:rgba(56,132,244,0.15);color:#3884f4;' : 'background:rgba(255,255,255,0.08);color:var(--muted);'}">${c.payout_gateway === 'razorpay' ? 'RAZORPAY TEST' : 'MOCK'}</span>
+        ${c.payout_reference ? `<span style="font-family:monospace;font-size:10px;color:var(--muted);">${esc(c.payout_reference_label || 'Reference')}: ${esc(c.payout_reference)}</span>` : `<span style="font-size:10px;color:var(--muted);">${esc(c.payment_ref || '')}</span>`}
       </div>` : ''}
+
+      ${c.payout_note ? `<div class="text-xs text-muted" style="margin-top:4px;line-height:1.45;">${esc(c.payout_note)}</div>` : ''}
 
       ${c.fraud_flags ? `<div class="claim-flags">${esc(c.fraud_flags)}</div>` : ''}
 
@@ -2949,7 +2997,7 @@ function renderClaimCard(c, isAdmin = false) {
             ⚠️ This claim was generated from a <b>simulated trigger</b>. In production, real weather/AQI data triggers payouts autonomously every 15 min.
            </div>`
         : (c.trigger_type ? `<div style="margin-top:8px;padding:6px 10px;border-radius:8px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.12);font-size:10px;line-height:1.5;color:#22c55e;font-style:italic;">
-            ✅ Generated from a <b>live disruption</b> detected via parametric monitoring (OpenWeatherMap · WAQI · GDELT).
+            ✅ Generated from a <b>live disruption</b> detected via parametric monitoring. Claim disbursement references may still be test/demo references unless a real payout rail is enabled.
            </div>` : '')}
 
       ${reviewable ? `
@@ -3278,7 +3326,7 @@ async function loadAdminPage() {
       }
     }
 
-    // Transaction Log (Phase 3: Razorpay payment gateway audit trail)
+    // Transaction Log (Phase 3: payment + disbursement audit trail)
     const txnEl = document.getElementById('admin-txn-log');
     if (txnEl) {
       if (!transactions.length) {
@@ -3291,9 +3339,9 @@ async function loadAdminPage() {
           const typeLabel = isPremium ? 'PREMIUM IN' : 'PAYOUT OUT';
           const statusColor = t.status === 'settled' ? '#22c55e' : t.status === 'failed' ? '#ef4444' : '#f59e0b';
           const gatewayBadge = t.gateway === 'razorpay' ?
-            '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(56,132,244,0.15);color:#3884f4;font-weight:700;">RAZORPAY</span>' :
+            `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(56,132,244,0.15);color:#3884f4;font-weight:700;">${isPremium ? 'RAZORPAY' : 'RZP TEST'}</span>` :
             '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.08);color:var(--muted);font-weight:700;">MOCK</span>';
-          const rzpId = t.razorpay_payment_id || t.upi_ref || '—';
+          const displayRef = t.display_reference || t.razorpay_payment_id || t.upi_ref || '—';
           const when = t.settled_at || t.initiated_at;
           const whenStr = when ? new Date(when).toLocaleString('en-IN', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}) : '—';
           return `
@@ -3304,7 +3352,9 @@ async function loadAdminPage() {
                   ${gatewayBadge}
                   <span style="font-size:10px;color:${statusColor};font-weight:700;text-transform:uppercase;">${t.status}</span>
                 </div>
-                <div style="font-family:monospace;font-size:11px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(rzpId)}</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:3px;">${esc(t.reference_label || 'Reference')}</div>
+                <div style="font-family:monospace;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(displayRef)}</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4;">${esc(t.flow_note || '')}</div>
                 <div style="font-size:10px;color:var(--muted);margin-top:1px;">${whenStr}</div>
               </div>
               <div style="text-align:right;">
@@ -3345,7 +3395,7 @@ function showWAModal(triggerType, city, payoutAmt, claimNum) {
   document.getElementById('wa-trigger-msg').innerHTML =
     TRIGGER_MSGS[triggerType] || `⚡ <b>${triggerType}</b> detected in ${city}.`;
   document.getElementById('wa-payout-amt').textContent =
-    payoutAmt > 0 ? `${fmt(payoutAmt)} Auto-Credited` : 'Claim Under Review';
+    payoutAmt > 0 ? `${fmt(payoutAmt)} Demo Payout Recorded` : 'Claim Under Review';
   document.getElementById('wa-claim-num').textContent = claimNum || 'CLM-AUTO-XXXXXX';
   document.getElementById('wa-time').textContent  = timeLabel;
   document.getElementById('wa-time2').textContent = timeLabel;

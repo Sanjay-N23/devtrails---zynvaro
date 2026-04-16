@@ -10,6 +10,7 @@ by tests/conftest.py and injected by pytest automatically.
 
 import sys
 import os
+from datetime import datetime
 
 # ── Make backend package importable from any working directory ──────────────
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -281,6 +282,30 @@ class TestMe:
         assert body["city"] == worker.city
         assert body["platform"] == worker.platform
         assert body["zone_risk_score"] == pytest.approx(worker.zone_risk_score, abs=1e-6)
+
+    def test_me_exposes_effective_city_from_recent_gps(self, authed_client, test_db):
+        worker = authed_client.worker  # type: ignore[attr-defined]
+        worker.city = "Bangalore"
+        worker.last_known_lat = 13.0827
+        worker.last_known_lng = 80.2707
+        worker.last_location_at = datetime.utcnow()
+        test_db.commit()
+
+        resp = authed_client.get("/auth/me")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["city"] == "Bangalore"
+        assert body["effective_city"] == "Chennai"
+        assert body["location_source"] == "recent_gps"
+        assert body["location_fresh"] is True
+
+    def test_location_update_returns_inferred_effective_city(self, authed_client):
+        resp = authed_client.post("/auth/me/location", json={"lat": 13.0827, "lng": 80.2707})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["effective_city"] == "Chennai"
+        assert body["location_source"] == "recent_gps"
+        assert body["location_fresh"] is True
 
     def test_me_without_token_returns_401(self, client, test_db):
         """Requests without an Authorization header must return HTTP 401."""

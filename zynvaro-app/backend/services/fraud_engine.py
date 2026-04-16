@@ -31,6 +31,9 @@ CITY_COORDINATES = {
     "Kolkata":   {"lat": 22.5726, "lng": 88.3639, "radius_km": 30},
 }
 
+RECENT_LOCATION_FRESHNESS_HOURS = 6
+CITY_INFERENCE_BUFFER_KM = 8
+
 # ─────────────────────────────────────────────────────────────────
 # PINCODE → GPS MAPPING (30+ pincodes, deterministic from city center)
 # Each pincode gets a unique position within its city via hash offset
@@ -108,6 +111,89 @@ def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     return round(R * c, 2)
+
+
+def infer_city_from_coords(lat: float, lng: float, buffer_km: float = CITY_INFERENCE_BUFFER_KM) -> Optional[dict]:
+    """
+    Infer the nearest supported city for a GPS point.
+
+    Returns the closest city only when the point falls within that city's
+    geofence or a small outskirts buffer. Otherwise returns None.
+    """
+    best_match = None
+
+    for city, city_data in CITY_COORDINATES.items():
+        distance_km = haversine_km(lat, lng, city_data["lat"], city_data["lng"])
+        max_distance = city_data["radius_km"] + buffer_km
+        if distance_km > max_distance:
+            continue
+
+        if best_match is None or distance_km < best_match["distance_km"]:
+            best_match = {
+                "city": city,
+                "distance_km": distance_km,
+                "radius_km": city_data["radius_km"],
+                "match_type": (
+                    "IN_ZONE"
+                    if distance_km <= city_data["radius_km"]
+                    else "BUFFER_ZONE"
+                ),
+            }
+
+    return best_match
+
+
+def get_worker_location_context(worker, freshness_hours: int = RECENT_LOCATION_FRESHNESS_HOURS) -> dict:
+    """
+    Resolve the best available location context for a worker.
+
+    Priority:
+    1. Recent device GPS sent from the frontend
+    2. Registered home GPS derived from pincode
+    3. Registered profile city
+    """
+    now = datetime.utcnow()
+    last_location_at = getattr(worker, "last_location_at", None)
+    has_recent_device_gps = bool(
+        getattr(worker, "last_known_lat", None) is not None
+        and getattr(worker, "last_known_lng", None) is not None
+        and last_location_at is not None
+        and last_location_at >= now - timedelta(hours=freshness_hours)
+    )
+
+    def _base_context(source: str, city: Optional[str], lat: Optional[float], lng: Optional[float], inferred: Optional[dict]) -> dict:
+        age_minutes = None
+        if last_location_at is not None:
+            age_minutes = max(0, round((now - last_location_at).total_seconds() / 60))
+        return {
+            "effective_city": city or getattr(worker, "city", None),
+            "source": source,
+            "lat": lat,
+            "lng": lng,
+            "distance_km": inferred["distance_km"] if inferred else None,
+            "match_type": inferred["match_type"] if inferred else None,
+            "location_fresh": has_recent_device_gps,
+            "location_age_minutes": age_minutes,
+            "last_location_at": last_location_at,
+        }
+
+    if has_recent_device_gps:
+        lat = worker.last_known_lat
+        lng = worker.last_known_lng
+        inferred = infer_city_from_coords(lat, lng)
+        if inferred:
+            return _base_context("recent_gps", inferred["city"], lat, lng, inferred)
+        return _base_context("recent_gps_unmatched", getattr(worker, "city", None), lat, lng, None)
+
+    home_lat = getattr(worker, "home_lat", None)
+    home_lng = getattr(worker, "home_lng", None)
+    if home_lat is not None and home_lng is not None:
+        inferred = infer_city_from_coords(home_lat, home_lng)
+        if inferred:
+            return _base_context("home_gps", inferred["city"], home_lat, home_lng, inferred)
+        return _base_context("home_gps_unmatched", getattr(worker, "city", None), home_lat, home_lng, None)
+
+    return _base_context("registered_city", getattr(worker, "city", None), None, None, None)
 
 
 # ─────────────────────────────────────────────────────────────────

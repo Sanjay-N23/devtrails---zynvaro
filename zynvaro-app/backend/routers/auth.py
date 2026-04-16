@@ -62,6 +62,11 @@ class WorkerProfile(BaseModel):
     home_lng: Optional[float] = None
     last_known_lat: Optional[float] = None
     last_known_lng: Optional[float] = None
+    last_location_at: Optional[datetime] = None
+    effective_city: Optional[str] = None
+    location_source: Optional[str] = None
+    location_fresh: bool = False
+    location_age_minutes: Optional[int] = None
     # Behavioral (Phase 3)
     fraud_flag_count: int = 0
     is_admin: bool = False
@@ -69,6 +74,21 @@ class WorkerProfile(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+def _serialize_worker_profile(worker: Worker) -> WorkerProfile:
+    from services.fraud_engine import get_worker_location_context
+
+    base = WorkerProfile.model_validate(worker, from_attributes=True).model_dump()
+    location = get_worker_location_context(worker)
+    base.update({
+        "effective_city": location.get("effective_city"),
+        "location_source": location.get("source"),
+        "location_fresh": bool(location.get("location_fresh")),
+        "location_age_minutes": location.get("location_age_minutes"),
+        "last_location_at": location.get("last_location_at"),
+    })
+    return WorkerProfile(**base)
 
 
 # ─── Helpers ────────────────────────────────────────────────────
@@ -170,7 +190,7 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 
 @router.get("/me", response_model=WorkerProfile)
 def get_profile(worker: Worker = Depends(get_current_worker)):
-    return worker
+    return _serialize_worker_profile(worker)
 
 
 # ─── Location Update (Phase 3: GPS Fraud Detection) ──────────
@@ -185,4 +205,14 @@ def update_location(loc: LocationUpdate, worker: Worker = Depends(get_current_wo
     worker.last_known_lng = loc.lng
     worker.last_location_at = datetime.utcnow()
     db.commit()
-    return {"status": "ok", "lat": loc.lat, "lng": loc.lng}
+    profile = _serialize_worker_profile(worker)
+    return {
+        "status": "ok",
+        "lat": loc.lat,
+        "lng": loc.lng,
+        "effective_city": profile.effective_city,
+        "location_source": profile.location_source,
+        "location_fresh": profile.location_fresh,
+        "location_age_minutes": profile.location_age_minutes,
+        "last_location_at": profile.last_location_at.isoformat() if profile.last_location_at else None,
+    }
