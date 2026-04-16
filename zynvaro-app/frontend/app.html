@@ -1307,7 +1307,15 @@ body {
     </div>
 
     <div class="card">
-      <div class="section-hd">All Claims</div>
+      <div class="section-hd">
+        All Claims
+        <span style="font-size:11px;color:var(--muted);font-weight:400;">filter:</span>
+        <span id="admin-claim-filter-chips" style="display:inline-flex;gap:4px;">
+          <button class="chip active" style="font-size:10px;padding:2px 8px;" onclick="filterAdminClaims('all', this)">All</button>
+          <button class="chip" style="font-size:10px;padding:2px 8px;color:#f97316;" onclick="filterAdminClaims('simulated', this)">SIMULATED</button>
+          <button class="chip" style="font-size:10px;padding:2px 8px;color:#22c55e;" onclick="filterAdminClaims('organic', this)">ORGANIC</button>
+        </span>
+      </div>
       <div id="admin-claims-list" style="max-height:min(560px, 60vh);overflow-y:auto;">
         <p class="text-muted text-sm">Loading...</p>
       </div>
@@ -1352,6 +1360,7 @@ body {
         <div class="wa-status">🟢 Income Protection Active</div>
       </div>
     </div>
+    <div id="wa-sim-banner" style="background:rgba(249,115,22,0.12);padding:6px 16px;text-align:center;font-size:10px;color:#f97316;font-weight:700;letter-spacing:.5px;border-bottom:1px solid rgba(249,115,22,0.2);">⚠️ SIMULATED TRIGGER — FOR DEMONSTRATION ONLY</div>
     <div class="wa-body">
       <div class="wa-bubble">
         <div class="wa-bubble-text" id="wa-trigger-msg">
@@ -2935,6 +2944,14 @@ function renderClaimCard(c, isAdmin = false) {
 
       ${c.fraud_flags ? `<div class="claim-flags">${esc(c.fraud_flags)}</div>` : ''}
 
+      ${c.is_simulated
+        ? `<div style="margin-top:8px;padding:6px 10px;border-radius:8px;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.15);font-size:10px;line-height:1.5;color:#f97316;font-style:italic;">
+            ⚠️ This claim was generated from a <b>simulated trigger</b>. In production, real weather/AQI data triggers payouts autonomously every 15 min.
+           </div>`
+        : (c.trigger_type ? `<div style="margin-top:8px;padding:6px 10px;border-radius:8px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.12);font-size:10px;line-height:1.5;color:#22c55e;font-style:italic;">
+            ✅ Generated from a <b>live disruption</b> detected via parametric monitoring (OpenWeatherMap · WAQI · GDELT).
+           </div>` : '')}
+
       ${reviewable ? `
         <div class="flex gap-2" style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
           <button class="btn btn-success btn-sm" style="flex:1;padding:7px 12px;font-size:12px;" onclick="adminApproveClaim(${c.id})">Approve</button>
@@ -2942,6 +2959,31 @@ function renderClaimCard(c, isAdmin = false) {
         </div>` : ''}
     </div>
   `;
+}
+
+function filterAdminClaims(mode, chipEl) {
+  // Update chip active states
+  document.querySelectorAll('#admin-claim-filter-chips .chip').forEach(c => c.classList.remove('active'));
+  if (chipEl) chipEl.classList.add('active');
+  else {
+    const firstChip = document.querySelector('#admin-claim-filter-chips .chip');
+    if (firstChip) firstChip.classList.add('active');
+  }
+
+  const all = window._allAdminClaims || [];
+  const filtered = mode === 'simulated' ? all.filter(c => c.is_simulated)
+                 : mode === 'organic'   ? all.filter(c => !c.is_simulated)
+                 : all;
+
+  const el = document.getElementById('admin-claims-list');
+  if (!filtered.length) {
+    const msg = mode === 'simulated' ? 'No simulated claims yet. Fire a What-If Scenario to generate one.'
+              : mode === 'organic'   ? 'No organic (live) claims yet. These appear when real conditions exceed thresholds.'
+              : 'No claims recorded yet.';
+    el.innerHTML = `<p class="text-muted text-sm" style="padding:8px 0;">${msg}</p>`;
+    return;
+  }
+  el.innerHTML = filtered.map(c => renderClaimCard(c, true)).join('');
 }
 
 async function adminApproveClaim(claimId) {
@@ -3275,9 +3317,8 @@ async function loadAdminPage() {
     }
 
     // All claims — isAdmin=true enables approve/reject buttons on reviewable claims
-    document.getElementById('admin-claims-list').innerHTML = allClaims.length ?
-      allClaims.map(c => renderClaimCard(c, true)).join('') :
-      '<p class="text-muted text-sm" style="padding:8px 0;">No claims recorded yet.</p>';
+    window._allAdminClaims = allClaims;
+    filterAdminClaims('all');
 
   } catch(e) {
     toast('Error loading admin data: ' + e.message, 'error');
