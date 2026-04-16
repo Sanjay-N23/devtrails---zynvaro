@@ -1018,14 +1018,26 @@ body {
       </div>
     </div>
 
-    <!-- LIVE TRIGGER FEED -->
+    <!-- LIVE CONDITIONS (compact dashboard version) -->
+    <div class="card" id="dash-live-conditions" style="position:relative;overflow:hidden;">
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--green),var(--blue),var(--orange));opacity:0.5;"></div>
+      <div class="section-hd" style="margin-bottom:8px;margin-top:2px;">
+        🌡️ Right Now
+        <button class="btn btn-ghost btn-sm" onclick="loadDashLiveConditions()" style="padding:5px 10px;font-size:11px;">⟳</button>
+      </div>
+      <div id="dash-conditions-content">
+        <p class="text-muted text-sm">Loading live data...</p>
+      </div>
+    </div>
+
+    <!-- CITY TRIGGER FEED -->
     <div class="card">
       <div class="section-hd">
-        Live Alerts
+        Your City Alerts
         <button class="btn btn-ghost btn-sm" onclick="loadTriggers()" style="padding:7px 14px;font-size:12px;">Refresh</button>
       </div>
       <div id="dash-trigger-feed">
-        <p class="text-muted text-sm">Checking triggers...</p>
+        <p class="text-muted text-sm">Loading your city alert history...</p>
       </div>
     </div>
   </div>
@@ -1045,6 +1057,9 @@ body {
           <button class="btn btn-sm" style="background:var(--orange);color:#000;font-weight:700;" onclick="renewPolicy()">Renew</button>
           <button class="btn btn-danger btn-sm" onclick="cancelPolicy()">Cancel</button>
         </div>
+      </div>
+      <div id="policy-renew-note" style="margin-top:10px;font-size:12px;color:var(--muted);line-height:1.5;">
+        Renewals open Razorpay Checkout manually. No automatic debit runs in the background.
       </div>
     </div>
 
@@ -1066,6 +1081,9 @@ body {
       <div id="breakdown-rows"></div>
       <div class="divider"></div>
       <div id="breakdown-explanation"></div>
+      <p id="payment-gateway-note" class="text-sm text-muted" style="line-height:1.5;margin-top:12px;">
+        Premiums are charged through Razorpay Checkout. If the popup cannot open, the policy will not auto-activate.
+      </p>
       <div class="divider"></div>
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
         <button class="btn btn-white btn-full" id="btn-activate-policy" onclick="activatePolicy()">
@@ -1081,17 +1099,30 @@ body {
     <div class="page-title">Triggers</div>
     <div class="page-subtitle">Real-time parametric monitoring. Payouts are instant.</div>
 
+    <!-- Live Conditions Card -->
+    <div class="card" id="live-conditions-card" style="border:1px solid var(--green);position:relative;overflow:hidden;">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--green),var(--blue),var(--orange));opacity:0.7;"></div>
+      <div class="section-hd" style="margin-bottom:10px;margin-top:4px;">
+        🌍 Live Conditions
+        <button class="btn btn-ghost btn-sm" onclick="loadLiveConditions()" style="padding:5px 12px;font-size:11px;">⟳ Refresh</button>
+      </div>
+      <div id="live-conditions-content">
+        <p class="text-muted text-sm">Loading real-time data for your city...</p>
+      </div>
+    </div>
+
     <!-- Simulate Panel -->
     <div class="card" style="border:1px solid var(--border);">
+
       <div class="section-hd" style="margin-bottom:8px;">
-        Simulate Trigger
+        What-If Scenario
         <span style="font-size:11px;color:var(--blue);background:var(--blue-d);padding:3px 9px;border-radius:var(--r-pill);font-weight:700;">DEMO</span>
-        <span class="info-tip">i<span class="tip-text">In production, triggers fire autonomously every 15 min via live APIs (OpenWeatherMap, WAQI, GDELT, HTTP probes). This button simulates the same end-to-end pipeline for demonstration.</span></span>
+        <span class="info-tip">i<span class="tip-text">In production, triggers fire autonomously every 15 min via live APIs (OpenWeatherMap, WAQI, GDELT, HTTP probes). This button simulates crossing the threshold to show the complete zero-touch claim pipeline.</span></span>
       </div>
-      <p class="text-sm text-muted mb-3">Force-fire a trigger to see zero-touch claims in action.</p>
+      <p class="text-sm text-muted mb-3">Simulate a threshold crossing to see zero-touch claims in action.</p>
       <div class="form-group">
         <label class="form-label">Trigger Type</label>
-        <select class="form-select" id="sim-trigger-type">
+        <select class="form-select" id="sim-trigger-type" onchange="updateSimComparison()">
           <option>Heavy Rainfall</option>
           <option>Extreme Rain / Flooding</option>
           <option>Severe Heatwave</option>
@@ -1100,17 +1131,25 @@ body {
           <option>Civil Disruption</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom:0">
+      <div class="form-group">
         <label class="form-label">City</label>
-        <select class="form-select" id="sim-city">
+        <select class="form-select" id="sim-city" onchange="updateSimComparison()">
           <option>Bangalore</option><option>Mumbai</option>
           <option>Delhi</option><option>Hyderabad</option><option>Chennai</option>
           <option>Pune</option><option>Kolkata</option>
         </select>
       </div>
-      <button id="btn-simulate-trigger" class="btn btn-primary btn-full mt-3" onclick="simulateTrigger()">
-        ⚡ Fire Trigger &amp; Auto-Generate Claims
+
+      <!-- What-If Comparison Panel -->
+      <div id="sim-comparison" style="background:var(--card2);border-radius:12px;padding:12px;margin-bottom:12px;display:none;">
+      </div>
+
+      <button id="btn-simulate-trigger" class="btn btn-primary btn-full" onclick="simulateTrigger()">
+        ⚡ Simulate Threshold Crossing
       </button>
+      <p style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;text-align:center;">
+        This overrides real conditions to demonstrate the claim pipeline. In production, real API data triggers payouts autonomously.
+      </p>
     </div>
 
     <!-- Monitored Types -->
@@ -1121,10 +1160,21 @@ body {
       </div>
     </div>
 
+    <!-- Live Check -->
+    <div class="card">
+      <div class="section-hd">
+        Live Check
+        <button class="btn btn-ghost btn-sm" onclick="loadTriggerLiveStatus()" style="padding:7px 14px;font-size:12px;">Check Now</button>
+      </div>
+      <div id="trigger-live-status">
+        <p class="text-muted text-sm">Waiting to check your city and platform...</p>
+      </div>
+    </div>
+
     <!-- Recent Events -->
     <div class="card">
       <div class="section-hd">
-        Recent Events
+        Recent Saved Events
         <button class="btn btn-ghost btn-sm" onclick="loadTriggerEvents()" style="padding:7px 14px;font-size:12px;">Refresh</button>
       </div>
       <div id="trigger-events-list">
@@ -1400,6 +1450,10 @@ let authToken = localStorage.getItem('zynvaro_token');
 let currentUser = JSON.parse(localStorage.getItem('zynvaro_user') || 'null');
 let selectedTier = null;
 let activePolicyData = null;
+const APP_QUERY = new URLSearchParams(window.location.search);
+const MOCK_PAYMENT_FALLBACK_ENABLED =
+  APP_QUERY.get('mockPayments') === '1' ||
+  localStorage.getItem('zynvaro_mock_payments') === '1';
 
 // ════════════════════════════════════════════════════════════════
 // UTILS
@@ -1470,6 +1524,72 @@ function scoreColor(s) {
   if (s >= 75) return '#00C853';
   if (s >= 45) return '#F59E0B';
   return '#EF4444';
+}
+
+function currentWorkerCity() {
+  return currentUser?.city || 'Bangalore';
+}
+
+function currentWorkerPlatform() {
+  return currentUser?.platform || 'Blinkit';
+}
+
+function currentCityTriggerHistoryPath(limit = 5) {
+  const params = new URLSearchParams({
+    city: currentWorkerCity(),
+    limit: String(limit),
+  });
+  return `/triggers/?${params.toString()}`;
+}
+
+function currentLiveTriggerPath() {
+  const params = new URLSearchParams({
+    city: currentWorkerCity(),
+    platform: currentWorkerPlatform(),
+  });
+  return `/triggers/live?${params.toString()}`;
+}
+
+function paymentModeCopy() {
+  return MOCK_PAYMENT_FALLBACK_ENABLED
+    ? 'Demo payment mode is enabled. Direct activation or renewal can happen without Razorpay Checkout.'
+    : 'Premiums are charged through Razorpay Checkout. If the popup cannot open, the policy will not auto-activate or auto-renew.';
+}
+
+function renewModeCopy() {
+  return MOCK_PAYMENT_FALLBACK_ENABLED
+    ? 'Demo payment mode is enabled. Renewals may fall back to a direct extension for testing.'
+    : 'Renewals open Razorpay Checkout manually. No automatic debit runs in the background.';
+}
+
+function updatePaymentModeNotice() {
+  const activateNote = document.getElementById('payment-gateway-note');
+  if (activateNote) activateNote.textContent = paymentModeCopy();
+
+  const renewNote = document.getElementById('policy-renew-note');
+  if (renewNote) renewNote.textContent = renewModeCopy();
+}
+
+function resetActivateButton(tierName) {
+  const freshBtn = document.getElementById('btn-activate-policy');
+  if (freshBtn) {
+    freshBtn.disabled = false;
+    freshBtn.innerHTML = `Activate ${tierName}`;
+  }
+}
+
+function handlePaymentGatewayFallback(actionLabel, directAction, resetUi) {
+  if (MOCK_PAYMENT_FALLBACK_ENABLED) {
+    toast(`${actionLabel} is running in demo payment mode. Razorpay Checkout was skipped on purpose.`, 'info');
+    return directAction();
+  }
+
+  if (typeof resetUi === 'function') resetUi();
+  toast(
+    `Razorpay Checkout is unavailable for ${actionLabel}. No automatic debit was attempted. Configure Razorpay or enable ?mockPayments=1 for demo fallback.`,
+    'error'
+  );
+  return null;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1627,7 +1747,7 @@ function navTo(page) {
 
   if (page === 'dashboard') loadDashboard();
   if (page === 'policy')    loadPolicyPage();
-  if (page === 'triggers')  { loadTriggerTypes(); loadTriggerEvents(); }
+  if (page === 'triggers')  { syncTriggerPageContext(); loadLiveConditions(); loadTriggerTypes(); loadTriggerLiveStatus(); loadTriggerEvents(); }
   if (page === 'claims')    loadClaimsPage();
   if (page === 'admin')     loadAdminPage();
   // Refresh Lucide SVG icons after DOM update
@@ -1639,10 +1759,11 @@ function navTo(page) {
 // ════════════════════════════════════════════════════════════════
 async function loadDashboard() {
   try {
+    const triggerHistoryPath = currentUser ? currentCityTriggerHistoryPath(5) : '/triggers/?limit=5';
     const [policy, claimStats, triggers, weeklySummary] = await Promise.all([
       api('/policies/active').catch(() => null),
       api('/claims/stats').catch(() => null),
-      api('/triggers/?limit=5').catch(() => []),
+      api(triggerHistoryPath).catch(() => []),
       api('/claims/my-weekly-summary').catch(() => null),
     ]);
 
@@ -1764,7 +1885,13 @@ async function loadDashboard() {
     }
 
     // ── Trigger feed ──
-    renderTriggerFeed(triggers, 'dash-trigger-feed');
+    const cityName = currentUser?.city || 'your city';
+    renderTriggerFeed(triggers, 'dash-trigger-feed', {
+      emptyMessage: `No saved disruptions in ${cityName} yet. Open Triggers to run a live check.`,
+    });
+
+    // ── Live conditions (non-blocking) ──
+    loadDashLiveConditions();
 
   } catch(e) {
     console.error(e);
@@ -1827,19 +1954,25 @@ async function loadRiskNarrative() {
   }
 }
 
-function renderTriggerFeed(events, containerId) {
+function renderTriggerFeed(events, containerId, opts = {}) {
   const el = document.getElementById(containerId);
   if (!events || events.length === 0) {
-    el.innerHTML = '<p class="text-muted text-sm" style="padding:8px 0;">✅ No active disruptions. Monitoring continues...</p>';
+    const msg = opts.emptyMessage || '✅ No active disruptions. Monitoring continues...';
+    el.innerHTML = `<p class="text-muted text-sm" style="padding:8px 0;">${msg}</p>`;
     return;
   }
-  el.innerHTML = events.map(e => `
+  el.innerHTML = events.map(e => {
+    const simBadge = e.is_simulated
+      ? '<span style="font-size:9px;padding:2px 6px;border-radius:50px;background:rgba(249,115,22,0.15);color:#f97316;font-weight:700;letter-spacing:.3px;">SIMULATED</span>'
+      : '<span style="font-size:9px;padding:2px 6px;border-radius:50px;background:rgba(34,197,94,0.12);color:#22c55e;font-weight:700;letter-spacing:.3px;">ORGANIC</span>';
+    return `
     <div class="trigger-item">
       <div class="trigger-icon-wrap">${triggerIcon(e.trigger_type)}</div>
       <div style="flex:1;min-width:0;">
         <div class="flex items-center gap-2 mb-1" style="flex-wrap:wrap;">
           <b class="text-sm">${esc(e.trigger_type)}</b>
           <span class="trigger-badge sev-${e.severity}">${e.severity}</span>
+          ${simBadge}
         </div>
         <p class="text-muted text-xs" style="line-height:1.4;">${esc(e.description || '')}</p>
         <p class="text-xs mt-1" style="color:var(--muted)">
@@ -1847,12 +1980,18 @@ function renderTriggerFeed(events, containerId) {
         </p>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 async function loadTriggers() {
   try {
-    const events = await api('/triggers/?limit=5');
+    const events = await api(currentCityTriggerHistoryPath(5));
+    if (!events.length) {
+      document.getElementById('dash-trigger-feed').innerHTML =
+        `<p class="text-muted text-sm" style="padding:8px 0;">No saved disruptions in ${esc(currentWorkerCity())} yet. Open Triggers to run a live check.</p>`;
+      return;
+    }
     renderTriggerFeed(events, 'dash-trigger-feed');
   } catch(e) {
     console.error('[loadTriggers]', e);
@@ -1864,6 +2003,258 @@ async function loadTriggers() {
 // ════════════════════════════════════════════════════════════════
 // POLICY PAGE
 // ════════════════════════════════════════════════════════════════
+function syncTriggerPageContext() {
+  const simCity = document.getElementById('sim-city');
+  if (simCity && currentUser?.city) simCity.value = currentUser.city;
+
+  const liveEl = document.getElementById('trigger-live-status');
+  if (liveEl && currentUser) {
+    liveEl.innerHTML = `<p class="text-muted text-sm">Checking ${esc(currentWorkerCity())} · ${esc(currentWorkerPlatform())}...</p>`;
+  }
+}
+
+function renderLiveCheckResult(data) {
+  const el = document.getElementById('trigger-live-status');
+  if (!el) return;
+
+  const badges = Object.entries(data?.source_status || {}).map(([label, status]) => `
+    <span style="font-size:11px;padding:4px 8px;border-radius:999px;background:var(--card2);color:var(--muted);">
+      ${esc(label)}: ${esc(status)}
+    </span>
+  `).join('');
+
+  const eventsHtml = (data.events || []).map(e => `
+    <div class="trigger-item">
+      <div class="trigger-icon-wrap">${triggerIcon(e.trigger_type)}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="flex items-center gap-2 mb-1" style="flex-wrap:wrap;">
+          <b class="text-sm">${esc(e.trigger_type)}</b>
+          <span class="trigger-badge sev-${e.severity}">${e.severity}</span>
+          ${e.is_validated ? '<span class="trigger-badge" style="background:var(--green-d);color:var(--green);">Verified</span>' : ''}
+        </div>
+        <p class="text-xs text-muted" style="line-height:1.4;">${esc(e.description || '')}</p>
+        <div class="flex gap-3 mt-1 text-xs text-muted" style="flex-wrap:wrap;">
+          <span>${esc(e.city || data.city)}</span>
+          <span>${e.measured_value} ${esc(e.unit || '')}</span>
+          <span>${e.detected_at ? timeAgo(e.detected_at) : 'just now'}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  const emptyText = data.triggers_fired > 0 && (!data.events || !data.events.length)
+    ? `A trigger crossed threshold in ${data.city}, but it was already saved recently so no duplicate event was created.`
+    : `No trigger thresholds are crossed right now in ${data.city}.`;
+
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+      <div style="font-size:13px;font-weight:700;">${esc(data.city)} · ${esc(data.platform || currentWorkerPlatform())}</div>
+      <div class="text-xs text-muted">Updated ${timeAgo(data.checked_at)}</div>
+    </div>
+    <p class="text-xs text-muted" style="line-height:1.5;margin-bottom:10px;">${esc(data.monitoring_note || 'Live monitoring check complete.')}</p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">${badges}</div>
+    ${eventsHtml || `<p class="text-muted text-sm" style="padding:8px 0;">${esc(emptyText)}</p>`}
+  `;
+}
+
+async function loadTriggerLiveStatus() {
+  const el = document.getElementById('trigger-live-status');
+  if (el) {
+    el.innerHTML = `<p class="text-muted text-sm">Checking ${esc(currentWorkerCity())} · ${esc(currentWorkerPlatform())} through live monitoring...</p>`;
+  }
+
+  try {
+    const data = await api(currentLiveTriggerPath());
+    renderLiveCheckResult(data);
+    loadTriggerEvents();
+  } catch (e) {
+    if (el) {
+      el.innerHTML = `<p class="text-muted text-sm" style="padding:8px 0;">Live check failed: ${esc(e.message)}</p>`;
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// LIVE CONDITIONS (real-time weather / AQI / platform readings)
+// ════════════════════════════════════════════════════════════════
+function conditionsApiPath() {
+  const params = new URLSearchParams({
+    city: currentWorkerCity(),
+    platform: currentWorkerPlatform(),
+  });
+  return `/triggers/conditions?${params.toString()}`;
+}
+
+function aqiColor(val) {
+  if (val <= 50) return 'var(--green)';
+  if (val <= 100) return '#a3e635';
+  if (val <= 150) return 'var(--yellow)';
+  if (val <= 200) return 'var(--orange)';
+  if (val <= 300) return '#dc2626';
+  return '#7f1d1d';
+}
+
+function sourceBadge(src) {
+  const isLive = src && src.toLowerCase().includes('live');
+  const bg = isLive ? 'var(--green-d)' : 'var(--card3)';
+  const color = isLive ? 'var(--green)' : 'var(--muted)';
+  const label = isLive ? '● LIVE' : '○ MOCK';
+  return `<span style="font-size:9px;padding:2px 6px;border-radius:50px;background:${bg};color:${color};font-weight:700;letter-spacing:.3px;">${label}</span>`;
+}
+
+function renderLiveConditionsCard(data, containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  const w = data.weather;
+  const a = data.aqi;
+  const p = data.platform_status;
+  const c = data.civil_disruption;
+
+  // Temperature emoji
+  const tempEmoji = w.temperature_c >= 40 ? '🔥' : w.temperature_c >= 30 ? '☀️' : w.temperature_c >= 20 ? '🌤️' : '❄️';
+  // Rain status
+  const rainNow = w.rain_1h_mm > 0;
+  const rainEmoji = rainNow ? '🌧️' : '☁️';
+  const rainPct = Math.min(100, (w.rain_24h_est_mm / w.rain_threshold_mm) * 100);
+  // AQI
+  const aqiPct = Math.min(100, (a.value / a.threshold) * 100);
+  // Platform
+  const platUp = p.status === 'UP';
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <!-- Temperature -->
+      <div style="background:var(--card2);border-radius:12px;padding:12px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="font-size:20px;">${tempEmoji}</span>
+          <span style="font-size:22px;font-weight:800;color:var(--text);">${w.temperature_c}°C</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.4;">
+          ${esc(w.description)}
+          <div style="margin-top:3px;">Heatwave at ${w.heat_threshold_c}°C</div>
+        </div>
+        <div style="margin-top:4px;">${sourceBadge(w.source)}</div>
+      </div>
+
+      <!-- AQI -->
+      <div style="background:var(--card2);border-radius:12px;padding:12px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="font-size:20px;">🫁</span>
+          <span style="font-size:22px;font-weight:800;color:${aqiColor(a.value)};">${a.value}</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.4;">
+          ${esc(a.category)}
+          <div style="margin-top:3px;">Hazardous at ${a.threshold}</div>
+        </div>
+        <div style="margin-top:4px;">${sourceBadge(a.source)}</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <!-- Rainfall -->
+      <div style="background:var(--card2);border-radius:12px;padding:12px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="font-size:18px;">${rainEmoji}</span>
+          <span style="font-size:16px;font-weight:700;color:var(--text);">${w.rain_24h_est_mm} mm</span>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Rain (24h est) · Trigger at ${w.rain_threshold_mm}mm</div>
+        <div style="height:4px;background:var(--card3);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${rainPct}%;background:${rainPct > 80 ? 'var(--red)' : rainPct > 50 ? 'var(--yellow)' : 'var(--blue)'};border-radius:4px;transition:width .3s;"></div>
+        </div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px;">${rainPct.toFixed(0)}% of threshold${w.rain_1h_mm > 0 ? ' · ' + w.rain_1h_mm + ' mm/h now' : ''}</div>
+      </div>
+
+      <!-- Platform -->
+      <div style="background:var(--card2);border-radius:12px;padding:12px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="font-size:18px;">${platUp ? '✅' : '🔴'}</span>
+          <span style="font-size:16px;font-weight:700;color:${platUp ? 'var(--green)' : 'var(--red)'};">${p.name}</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.4;">
+          ${platUp ? 'Online' : 'DOWN'} · ${p.latency_ms}ms
+        </div>
+        <div style="margin-top:4px;">${sourceBadge(p.source)}</div>
+      </div>
+    </div>
+
+    <!-- Civil Disruption (single row) -->
+    <div style="background:var(--card2);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span style="font-size:18px;">${c.active ? '🚨' : '✅'}</span>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:700;color:${c.active ? 'var(--red)' : 'var(--green)'};">
+          ${c.active ? 'Active: ' + esc(c.type || 'Disruption') : 'No Civil Disruption'}
+        </div>
+        <div style="font-size:10px;color:var(--muted);">${c.article_count} news articles in last 6h · ${sourceBadge(c.source)}</div>
+      </div>
+    </div>
+
+    <div style="font-size:10px;color:var(--muted);text-align:right;">
+      ${esc(data.city)} · Updated ${timeAgo(data.checked_at)}
+    </div>
+  `;
+}
+
+function renderDashConditionsCompact(data, containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  const w = data.weather;
+  const a = data.aqi;
+  const p = data.platform_status;
+  const tempEmoji = w.temperature_c >= 40 ? '🔥' : w.temperature_c >= 30 ? '☀️' : w.temperature_c >= 20 ? '🌤️' : '❄️';
+  const platUp = p.status === 'UP';
+
+  el.innerHTML = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <div style="display:flex;align-items:center;gap:5px;background:var(--card2);padding:6px 12px;border-radius:10px;">
+        <span>${tempEmoji}</span>
+        <span style="font-weight:800;font-size:15px;">${w.temperature_c}°C</span>
+        <span style="font-size:10px;color:var(--muted);">${esc(w.description)}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;background:var(--card2);padding:6px 12px;border-radius:10px;">
+        <span>🫁</span>
+        <span style="font-weight:800;font-size:15px;color:${aqiColor(a.value)};">${a.value}</span>
+        <span style="font-size:10px;color:var(--muted);">AQI</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;background:var(--card2);padding:6px 12px;border-radius:10px;">
+        <span>${w.rain_1h_mm > 0 ? '🌧️' : '☁️'}</span>
+        <span style="font-weight:700;font-size:13px;">${w.rain_24h_est_mm}mm</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;background:var(--card2);padding:6px 12px;border-radius:10px;">
+        <span>${platUp ? '✅' : '🔴'}</span>
+        <span style="font-size:12px;font-weight:600;">${p.name}</span>
+        <span style="font-size:10px;color:var(--muted);">${p.latency_ms}ms</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
+      ${Object.entries(data.sources).map(([k,v]) => `${sourceBadge(v)} <span style="font-size:9px;color:var(--muted);">${esc(k)}</span>`).join('  ')}
+    </div>
+  `;
+}
+
+async function loadLiveConditions() {
+  const el = document.getElementById('live-conditions-content');
+  if (el) el.innerHTML = `<p class="text-muted text-sm">Fetching real-time data for ${esc(currentWorkerCity())}...</p>`;
+  try {
+    const data = await api(conditionsApiPath());
+    renderLiveConditionsCard(data, 'live-conditions-content');
+  } catch(e) {
+    if (el) el.innerHTML = `<p class="text-muted text-sm">Failed to load conditions: ${esc(e.message)}</p>`;
+  }
+}
+
+async function loadDashLiveConditions() {
+  const el = document.getElementById('dash-conditions-content');
+  if (el) el.innerHTML = `<p class="text-muted text-sm">Loading...</p>`;
+  try {
+    const data = await api(conditionsApiPath());
+    renderDashConditionsCompact(data, 'dash-conditions-content');
+  } catch(e) {
+    if (el) el.innerHTML = `<p class="text-muted text-sm" style="font-size:11px;">Live conditions unavailable</p>`;
+  }
+}
+
 async function loadPolicyPage() {
   try {
     const [quotesData, activePolicy] = await Promise.all([
@@ -1871,6 +2262,7 @@ async function loadPolicyPage() {
       api('/policies/active').catch(() => null),
     ]);
     activePolicyData = activePolicy;
+    updatePaymentModeNotice();
 
     if (activePolicy) {
       document.getElementById('policy-active-banner').classList.remove('hidden');
@@ -2001,9 +2393,9 @@ async function activatePolicy() {
   const btn = document.getElementById('btn-activate-policy');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Processing...';
 
-  // Fallback: if Razorpay Checkout.js not loaded, use direct activation
+  // Only use direct activation when demo payment mode is explicitly enabled.
   if (typeof Razorpay === 'undefined') {
-    return activatePolicyDirect(tierName);
+    return handlePaymentGatewayFallback('policy activation', () => activatePolicyDirect(tierName), () => resetActivateButton(tierName));
   }
 
   try {
@@ -2013,9 +2405,9 @@ async function activatePolicy() {
       body: JSON.stringify({ tier: tierName })
     });
 
-    // Fallback: backend returned mock order (no Razorpay keys)
+    // Backend returned a mock order instead of a real Razorpay order.
     if (!order.key_id || order.order_id === 'MOCK_ORDER') {
-      return activatePolicyDirect(tierName);
+      return handlePaymentGatewayFallback('policy activation', () => activatePolicyDirect(tierName), () => resetActivateButton(tierName));
     }
 
     // Step 2: Open Razorpay Checkout popup
@@ -2136,13 +2528,13 @@ async function renewPolicy() {
   const tierName = activePolicyData.tier;
 
   if (typeof Razorpay === 'undefined') {
-    return renewPolicyDirect();
+    return handlePaymentGatewayFallback('policy renewal', renewPolicyDirect);
   }
 
   try {
     const order = await api('/policies/renew-order', { method: 'POST' });
     if (!order.key_id || order.order_id === 'MOCK_ORDER') {
-      return renewPolicyDirect();
+      return handlePaymentGatewayFallback('policy renewal', renewPolicyDirect);
     }
 
     const options = {
@@ -2215,10 +2607,10 @@ async function loadTriggerTypes() {
 
 async function loadTriggerEvents() {
   try {
-    const events = await api('/triggers/?limit=15');
+    const events = await api(currentCityTriggerHistoryPath(15));
     const el = document.getElementById('trigger-events-list');
     if (!events.length) {
-      el.innerHTML = '<p class="text-muted text-sm" style="padding:8px 0;">No events yet. Use Simulate above.</p>';
+      el.innerHTML = `<p class="text-muted text-sm" style="padding:8px 0;">No saved events yet in ${esc(currentWorkerCity())}. Use Live Check above or Simulate below.</p>`;
       return;
     }
     el.innerHTML = events.map(e => `
@@ -2245,17 +2637,129 @@ async function loadTriggerEvents() {
   }
 }
 
+// ════════════════════════════════════════════════════════════════
+// WHAT-IF COMPARISON (real value vs threshold vs simulated)
+// ════════════════════════════════════════════════════════════════
+const SIM_VALUES = {
+  'Heavy Rainfall': { sim: 72.5, unit: 'mm/24hr', field: 'rain' },
+  'Extreme Rain / Flooding': { sim: 210, unit: 'mm/24hr', field: 'rain' },
+  'Severe Heatwave': { sim: 46.2, unit: '°C', field: 'temp' },
+  'Hazardous AQI': { sim: 485, unit: 'AQI', field: 'aqi' },
+  'Platform Outage': { sim: 20, unit: 'min down', field: 'platform' },
+  'Civil Disruption': { sim: 6, unit: 'hours', field: 'civil' },
+};
+
+const SIM_THRESHOLDS = {
+  'Heavy Rainfall': 64.5,
+  'Extreme Rain / Flooding': 204.5,
+  'Severe Heatwave': 45,
+  'Hazardous AQI': 400,
+  'Platform Outage': 15,
+  'Civil Disruption': 4,
+};
+
+let _lastSimConditions = null;
+
+async function updateSimComparison() {
+  const trigType = document.getElementById('sim-trigger-type').value;
+  const city = document.getElementById('sim-city').value;
+  const panel = document.getElementById('sim-comparison');
+  if (!panel) return;
+
+  panel.style.display = 'block';
+  panel.innerHTML = `<p class="text-muted text-sm">Fetching current ${esc(trigType)} reading for ${esc(city)}...</p>`;
+
+  try {
+    const data = await api(conditionsApiPath());
+    _lastSimConditions = data;
+    const cfg = SIM_VALUES[trigType] || { sim: 100, unit: '', field: '' };
+    const threshold = SIM_THRESHOLDS[trigType] || 100;
+
+    // Extract current value based on trigger type
+    let current = 0;
+    let sourceLabel = '';
+    const f = cfg.field;
+    if (f === 'rain') {
+      current = data.weather?.rain_24h_est_mm || 0;
+      sourceLabel = data.sources?.weather || 'API';
+    } else if (f === 'temp') {
+      current = data.weather?.temperature_c || 0;
+      sourceLabel = data.sources?.weather || 'API';
+    } else if (f === 'aqi') {
+      current = data.aqi?.value || 0;
+      sourceLabel = data.sources?.aqi || 'API';
+    } else if (f === 'platform') {
+      current = data.platform_status?.status === 'DOWN' ? 20 : 0;
+      sourceLabel = data.sources?.platform || 'API';
+    } else if (f === 'civil') {
+      current = data.civil_disruption?.active ? 6 : 0;
+      sourceLabel = data.sources?.civil || 'API';
+    }
+
+    const pct = Math.min(100, (current / threshold) * 100);
+    const gap = threshold - current;
+    const isLive = sourceLabel.toLowerCase().includes('live');
+
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
+        <span style="font-size:12px;font-weight:700;color:var(--text);">📊 Real vs Simulated</span>
+        ${isLive
+          ? '<span style="font-size:9px;padding:2px 6px;border-radius:50px;background:var(--green-d);color:var(--green);font-weight:700;">● LIVE</span>'
+          : '<span style="font-size:9px;padding:2px 6px;border-radius:50px;background:var(--card3);color:var(--muted);font-weight:700;">○ MOCK</span>'
+        }
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:10px;">
+        <div style="text-align:center;">
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Current</div>
+          <div style="font-size:20px;font-weight:800;color:var(--blue);">${current}</div>
+          <div style="font-size:10px;color:var(--muted);">${cfg.unit}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Threshold</div>
+          <div style="font-size:20px;font-weight:800;color:var(--yellow);">${threshold}</div>
+          <div style="font-size:10px;color:var(--muted);">${cfg.unit}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Simulated</div>
+          <div style="font-size:20px;font-weight:800;color:var(--red);">${cfg.sim}</div>
+          <div style="font-size:10px;color:var(--muted);">${cfg.unit}</div>
+        </div>
+      </div>
+
+      <div style="height:4px;background:var(--card3);border-radius:4px;overflow:hidden;margin-bottom:4px;">
+        <div style="height:100%;width:${pct}%;background:${pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--yellow)' : 'var(--blue)'};border-radius:4px;transition:width .3s;"></div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);">
+        ${pct.toFixed(0)}% of threshold · ${gap > 0 ? `${gap.toFixed(1)} ${cfg.unit} below trigger` : '<span style="color:var(--red);font-weight:700;">THRESHOLD EXCEEDED</span>'}
+      </div>
+      <div style="font-size:9px;color:var(--muted);margin-top:6px;line-height:1.4;font-style:italic;">
+        Simulation will override the current ${current} ${cfg.unit} → ${cfg.sim} ${cfg.unit} to demonstrate the zero-touch claim pipeline.
+      </div>
+    `;
+  } catch(e) {
+    panel.innerHTML = `<p class="text-muted text-sm">Could not fetch current reading. Simulation will still work.</p>`;
+  }
+}
+
 async function simulateTrigger() {
   const trigType = document.getElementById('sim-trigger-type').value;
   const city     = document.getElementById('sim-city').value;
   const btn = document.getElementById('btn-simulate-trigger');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Firing trigger...';
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Simulating threshold crossing...';
   try {
     const res = await api('/triggers/simulate', {
       method: 'POST',
       body: JSON.stringify({ trigger_type: trigType, city })
     });
-    toast(`🚨 ${trigType} triggered in ${city}! Processing claims...`, 'info');
+
+    // Show what-if comparison from the response
+    if (res.current_reading) {
+      const cfg = SIM_VALUES[trigType] || {};
+      toast(`🚨 ${trigType} simulated in ${city}! Current: ${res.current_reading.value} → Simulated: ${res.measured_value} ${res.unit}`, 'info');
+    } else {
+      toast(`🚨 ${trigType} simulated in ${city}! Processing claims...`, 'info');
+    }
     loadTriggerEvents();
 
     // Poll for the new claim with retry — background task may take 1–5s
@@ -2283,7 +2787,7 @@ async function simulateTrigger() {
   } catch(e) {
     toast(e.message, 'error');
   } finally {
-    btn.disabled = false; btn.innerHTML = '⚡ Fire Trigger & Auto-Generate Claims';
+    btn.disabled = false; btn.innerHTML = '⚡ Simulate Threshold Crossing';
   }
 }
 
@@ -2392,6 +2896,7 @@ function renderClaimCard(c, isAdmin = false) {
           <div style="font-size:13px;font-weight:600;">${esc(c.trigger_type || 'Disruption')}</div>
           <div class="text-xs text-muted">#${esc(c.claim_number)} · ${timeAgo(c.created_at)}</div>
         </div>
+        ${c.is_simulated ? '<span style="font-size:9px;padding:2px 7px;border-radius:50px;background:rgba(249,115,22,0.15);color:#f97316;font-weight:700;letter-spacing:.3px;">SIMULATED</span>' : ''}
         <span class="claim-status-badge ${statusClass}">${c.status.replace(/_/g,' ').toUpperCase()}</span>
       </div>
 
@@ -2879,7 +3384,7 @@ window.addEventListener('popstate', e => {
   document.querySelectorAll(`[onclick="navTo('${page}')"]`).forEach(l => l.classList.add('active'));
   if (page === 'dashboard') loadDashboard();
   if (page === 'policy')    loadPolicyPage();
-  if (page === 'triggers')  { loadTriggerTypes(); loadTriggerEvents(); }
+  if (page === 'triggers')  { syncTriggerPageContext(); loadLiveConditions(); loadTriggerTypes(); loadTriggerLiveStatus(); loadTriggerEvents(); }
   if (page === 'claims')    loadClaimsPage();
   if (page === 'admin')     loadAdminPage();
 });

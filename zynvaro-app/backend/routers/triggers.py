@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 import asyncio
 
@@ -29,6 +29,7 @@ class TriggerEventResponse(BaseModel):
     source_primary: str
     source_secondary: Optional[str]
     is_validated: bool
+    is_simulated: bool = False
     severity: str
     description: Optional[str]
     detected_at: datetime
@@ -43,9 +44,12 @@ class SimulateRequest(BaseModel):
 
 class LiveCheckResponse(BaseModel):
     city: str
+    platform: str
     checked_at: str
     triggers_fired: int
     events: list
+    source_status: Dict[str, str]
+    monitoring_note: str
 
 class SimulateResponse(BaseModel):
     message: str
@@ -53,6 +57,27 @@ class SimulateResponse(BaseModel):
     measured_value: float
     unit: str
     description: str
+    is_simulated: bool = True
+    current_reading: Optional[Dict] = None
+
+
+def _build_live_source_status() -> Dict[str, str]:
+    from services.trigger_engine import OPENWEATHER_API_KEY, WAQI_API_TOKEN
+
+    return {
+        "weather": (
+            "OpenWeatherMap configured"
+            if OPENWEATHER_API_KEY
+            else "Mock fallback (OPENWEATHER_API_KEY missing in backend/.env)"
+        ),
+        "aqi": (
+            "WAQI configured"
+            if WAQI_API_TOKEN
+            else "Mock fallback (WAQI_API_TOKEN missing in backend/.env)"
+        ),
+        "platform": "Live HTTP reachability probe",
+        "civil": "Live GDELT news scan",
+    }
 
 
 # ─── Endpoints ──────────────────────────────────────────────────
@@ -132,23 +157,35 @@ async def live_check(
         saved_events.append({
             "id": event.id,
             "trigger_type": event.trigger_type,
+            "city": event.city,
             "measured_value": event.measured_value,
             "threshold_value": event.threshold_value,
             "unit": event.unit,
+            "source_primary": event.source_primary,
+            "source_secondary": event.source_secondary,
+            "is_validated": event.is_validated,
             "severity": event.severity,
             "description": event.description,
+            "detected_at": event.detected_at.isoformat(),
+            "expires_at": event.expires_at.isoformat() if event.expires_at else None,
         })
         # Zero-touch: auto-generate claims for all active policyholders in this city
         if background_tasks:
             background_tasks.add_task(
-                _auto_generate_claims, event.id, city, t["trigger_type"], db
+                _auto_generate_claims, event.id, city, t["trigger_type"], db, is_simulated=False
             )
 
     return LiveCheckResponse(
         city=city,
+        platform=platform,
         checked_at=datetime.utcnow().isoformat(),
         triggers_fired=len(fired),
         events=saved_events,
+        source_status=_build_live_source_status(),
+        monitoring_note=(
+            "Live check runs for your selected city and platform. "
+            "Recent Events shows saved trigger history, not raw weather readings."
+        ),
     )
 
 
@@ -177,6 +214,41 @@ async def simulate_trigger_event(
         )
     t = simulate_trigger(req.trigger_type, req.city)
 
+    # Fetch current real reading for comparison (what-if framing)
+    from services.trigger_engine import (
+        fetch_real_weather, fetch_real_aqi, fetch_real_platform_status,
+        fetch_civil_disruption_live, mock_weather, mock_aqi,
+        mock_platform_status, mock_civil_disruption,
+        OPENWEATHER_API_KEY, WAQI_API_TOKEN,
+    )
+    current_reading = None
+    try:
+        if req.trigger_type in ["Heavy Rainfall", "Extreme Rain / Flooding", "Severe Heatwave"]:
+            w = await fetch_real_weather(req.city) if OPENWEATHER_API_KEY else None
+            if w is None:
+                w = mock_weather(req.city)
+            if req.trigger_type in ["Heavy Rainfall", "Extreme Rain / Flooding"]:
+                current_reading = {"value": round(w.get("rain_24h_mm", 0), 1), "source": "OpenWeatherMap" if OPENWEATHER_API_KEY else "Mock"}
+            else:
+                current_reading = {"value": round(w.get("temp", 0), 1), "source": "OpenWeatherMap" if OPENWEATHER_API_KEY else "Mock"}
+        elif req.trigger_type == "Hazardous AQI":
+            aqi = await fetch_real_aqi(req.city) if WAQI_API_TOKEN else None
+            current_reading = {"value": round(aqi, 0) if aqi else round(mock_aqi(req.city), 0), "source": "WAQI" if aqi else "Mock"}
+        elif req.trigger_type == "Platform Outage":
+            ps = await fetch_real_platform_status("Blinkit")
+            if ps:
+                current_reading = {"value": round(ps.get("latency_ms", 0) / 1000, 1), "source": "HTTP probe", "status": ps.get("status")}
+            else:
+                current_reading = {"value": 0, "source": "Mock"}
+        elif req.trigger_type == "Civil Disruption":
+            cd = await fetch_civil_disruption_live(req.city)
+            if cd:
+                current_reading = {"value": cd.get("duration_hours", 0), "source": "GDELT", "active": cd.get("active_restrictions", False), "articles": cd.get("article_count", 0)}
+            else:
+                current_reading = {"value": 0, "source": "Mock"}
+    except Exception:
+        pass  # Non-critical — comparison is optional
+
     # Get trigger zone GPS coordinates (Phase 3)
     from services.fraud_engine import get_city_center
     _sim_geo = get_city_center(req.city)
@@ -189,6 +261,7 @@ async def simulate_trigger_event(
         source_primary=t["source_primary"],
         source_secondary=t["source_secondary"],
         is_validated=True,
+        is_simulated=True,
         severity=t["severity"],
         description=t["description"],
         detected_at=datetime.utcnow(),
@@ -201,7 +274,7 @@ async def simulate_trigger_event(
     db.refresh(event)
 
     # Auto-generate claims for eligible workers in this city
-    background_tasks.add_task(_auto_generate_claims, event.id, req.city, req.trigger_type, db)
+    background_tasks.add_task(_auto_generate_claims, event.id, req.city, req.trigger_type, db, is_simulated=True)
 
     return {
         "message": f"Trigger '{req.trigger_type}' simulated in {req.city}",
@@ -209,6 +282,129 @@ async def simulate_trigger_event(
         "measured_value": t["measured_value"],
         "unit": t["unit"],
         "description": t["description"],
+        "is_simulated": True,
+        "current_reading": current_reading,
+    }
+
+
+@router.get("/conditions")
+async def get_live_conditions(
+    city: str = "Bangalore",
+    platform: str = "Blinkit",
+    current_worker: Worker = Depends(get_current_worker),
+):
+    """
+    Fetch raw live weather, AQI, platform, and civil disruption data for a city.
+    Returns actual readings (not just fired triggers) so the frontend
+    can display real-time conditions regardless of threshold exceedance.
+    """
+    from services.trigger_engine import (
+        fetch_real_weather, fetch_real_aqi, fetch_real_platform_status,
+        fetch_civil_disruption_live, mock_weather, mock_aqi,
+        mock_platform_status, mock_civil_disruption,
+        OPENWEATHER_API_KEY, WAQI_API_TOKEN, CITY_COORDS, TRIGGERS,
+    )
+
+    # --- Weather (OpenWeatherMap) ---
+    weather_data = None
+    weather_source = "mock"
+    if OPENWEATHER_API_KEY:
+        weather_data = await fetch_real_weather(city)
+    if weather_data:
+        weather_source = "OpenWeatherMap (live)"
+    else:
+        mock = mock_weather(city)
+        weather_data = {
+            "temp": mock["temp"],
+            "rain_1h_mm": 0,
+            "rain_3h_mm": 0,
+            "rain_24h_mm": mock["rain_24h_mm"],
+            "description": "mock data",
+            "source": "Mock fallback",
+        }
+
+    # --- AQI (WAQI) ---
+    aqi_value = None
+    aqi_source = "mock"
+    if WAQI_API_TOKEN:
+        aqi_value = await fetch_real_aqi(city)
+    if aqi_value is not None:
+        aqi_source = "WAQI (live)"
+    else:
+        aqi_value = mock_aqi(city)
+        aqi_source = "Mock fallback"
+
+    # --- Platform status ---
+    platform_data = await fetch_real_platform_status(platform)
+    if platform_data:
+        platform_source = platform_data.get("source", "HTTP probe (live)")
+    else:
+        platform_data = mock_platform_status(platform)
+        platform_source = "Mock fallback"
+
+    # --- Civil disruption (GDELT) ---
+    civil_data = await fetch_civil_disruption_live(city)
+    if civil_data:
+        civil_source = civil_data.get("source", "GDELT (live)")
+    else:
+        civil_data = mock_civil_disruption(city)
+        civil_source = "Mock fallback"
+
+    # --- AQI category label ---
+    def aqi_category(val):
+        if val <= 50: return "Good"
+        if val <= 100: return "Moderate"
+        if val <= 150: return "Unhealthy (Sensitive)"
+        if val <= 200: return "Unhealthy"
+        if val <= 300: return "Very Unhealthy"
+        return "Hazardous"
+
+    # --- Threshold proximity ---
+    rain_threshold = TRIGGERS["Heavy Rainfall"]["threshold"]
+    heat_threshold = TRIGGERS["Severe Heatwave"]["threshold"]
+    aqi_threshold = TRIGGERS["Hazardous AQI"]["threshold"]
+
+    coords = CITY_COORDS.get(city, CITY_COORDS["Bangalore"])
+
+    return {
+        "city": city,
+        "platform": platform,
+        "checked_at": datetime.utcnow().isoformat(),
+        "coordinates": {"lat": coords["lat"], "lon": coords["lon"]},
+        "weather": {
+            "temperature_c": round(weather_data["temp"], 1),
+            "description": weather_data.get("description", ""),
+            "rain_1h_mm": round(weather_data.get("rain_1h_mm", 0), 1),
+            "rain_3h_mm": round(weather_data.get("rain_3h_mm", 0), 1),
+            "rain_24h_est_mm": round(weather_data.get("rain_24h_mm", 0), 1),
+            "rain_threshold_mm": rain_threshold,
+            "heat_threshold_c": heat_threshold,
+            "source": weather_source,
+        },
+        "aqi": {
+            "value": round(aqi_value, 0),
+            "category": aqi_category(aqi_value),
+            "threshold": aqi_threshold,
+            "source": aqi_source,
+        },
+        "platform_status": {
+            "name": platform_data.get("platform", platform),
+            "status": platform_data.get("status", "UNKNOWN"),
+            "latency_ms": platform_data.get("latency_ms", 0),
+            "source": platform_source,
+        },
+        "civil_disruption": {
+            "active": civil_data.get("active_restrictions", False),
+            "type": civil_data.get("type"),
+            "article_count": civil_data.get("article_count", 0),
+            "source": civil_source,
+        },
+        "sources": {
+            "weather": weather_source,
+            "aqi": aqi_source,
+            "platform": platform_source,
+            "civil": civil_source,
+        },
     }
 
 
@@ -227,7 +423,7 @@ def list_trigger_types():
 
 
 # ─── Background: Auto-generate claims after trigger fires ───────
-def _auto_generate_claims(event_id: int, city: str, trigger_type: str, db: Session):
+def _auto_generate_claims(event_id: int, city: str, trigger_type: str, db: Session, is_simulated: bool = False):
     """
     Find all active workers + policies in the triggered city.
     Create claims automatically (zero-touch).
@@ -360,6 +556,7 @@ def _auto_generate_claims(event_id: int, city: str, trigger_type: str, db: Sessi
                 shift_valid=fraud.get("shift_valid", True),
                 weather_cross_valid=fraud.get("weather_cross_valid", True),
                 velocity_valid=fraud.get("velocity_valid", True),
+                is_simulated=is_simulated,
             )
             db.add(claim)
             db.flush()  # Get claim.id for payout transaction

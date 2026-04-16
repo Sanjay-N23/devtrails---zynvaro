@@ -141,6 +141,7 @@ class TriggerEvent(Base):
 
     detected_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=True)
+    is_simulated = Column(Boolean, default=False)   # True for demo-simulated triggers
 
     claims = relationship("Claim", back_populates="trigger_event")
 
@@ -185,6 +186,7 @@ class Claim(Base):
     paid_at = Column(DateTime, nullable=True)
 
     auto_processed = Column(Boolean, default=True)
+    is_simulated = Column(Boolean, default=False)    # True if claim came from simulated trigger
     created_at = Column(DateTime, default=datetime.utcnow)
 
     worker = relationship("Worker", back_populates="claims")

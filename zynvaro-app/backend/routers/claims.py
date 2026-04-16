@@ -32,6 +32,7 @@ class ClaimResponse(BaseModel):
     cross_source_valid: bool
     fraud_flags: Optional[str]
     auto_processed: bool
+    is_simulated: bool = False
     paid_at: Optional[datetime]
     payment_ref: Optional[str]
     created_at: datetime
@@ -136,6 +137,7 @@ def enrich_claim(claim: Claim) -> ClaimResponse:
         cross_source_valid=claim.cross_source_valid,
         fraud_flags=claim.fraud_flags,
         auto_processed=claim.auto_processed,
+        is_simulated=getattr(claim, 'is_simulated', False),
         paid_at=claim.paid_at,
         payment_ref=claim.payment_ref,
         created_at=claim.created_at,
