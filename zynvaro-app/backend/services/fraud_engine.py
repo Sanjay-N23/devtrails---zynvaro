@@ -26,8 +26,8 @@ CITY_COORDINATES = {
     "Delhi":     {"lat": 28.6139, "lng": 77.2090, "radius_km": 40},
     "Bangalore": {"lat": 12.9716, "lng": 77.5946, "radius_km": 30},
     "Hyderabad": {"lat": 17.3850, "lng": 78.4867, "radius_km": 30},
-    "Chennai":   {"lat": 13.0827, "lng": 80.2707, "radius_km": 40},
-    "Pune":      {"lat": 18.5204, "lng": 73.8567, "radius_km": 30},
+    "Chennai":   {"lat": 13.0827, "lng": 80.2707, "radius_km": 25},
+    "Pune":      {"lat": 18.5204, "lng": 73.8567, "radius_km": 25},
     "Kolkata":   {"lat": 22.5726, "lng": 88.3639, "radius_km": 30},
 }
 
@@ -648,14 +648,26 @@ def compute_advanced_fraud_score(
     module_results = {}
 
     # ── Module 1: GPS Spoofing ────────────────────────────────────
-    gps_result = check_gps_spoofing(
-        worker_city=worker.city,
-        trigger_city=trigger_event.city,
-        claim_lat=claim_lat,
-        claim_lng=claim_lng,
-        worker_home_lat=worker.home_lat,
-        worker_home_lng=worker.home_lng,
-    )
+    is_simulated = getattr(trigger_event, 'is_simulated', False) or (trigger_event.description and "Simulated" in trigger_event.description)
+    
+    if is_simulated:
+        # [Phase 3 Demo Override] Bypass hard GPS geofence so judges can experience the fund transfer from anywhere
+        gps_result = {
+            "valid": True,
+            "score_impact": 0,
+            "flag": None,
+            "details": {"distance_km": 0.0, "zone_status": "SIMULATED_BYPASS", "max_radius_km": 0.0},
+        }
+    else:
+        gps_result = check_gps_spoofing(
+            worker_city=worker.city,
+            trigger_city=trigger_event.city,
+            claim_lat=claim_lat,
+            claim_lng=claim_lng,
+            worker_home_lat=worker.home_lat,
+            worker_home_lng=worker.home_lng,
+        )
+        
     score += gps_result["score_impact"]
     if gps_result["flag"]:
         all_flags.append(gps_result["flag"])
