@@ -789,18 +789,19 @@ During peak monsoon, trigger probability rises to 25-35%. The dynamic pricing en
 - [x] Claims management with 4-signal fraud scoring (city, device, frequency, history)
 - [x] Admin dashboard with auth-protected analytics endpoints
 - [x] MetaMask-style dark PWA UI with Inter typography system
-- [ ] RazorpayX test-mode payout integration
-- [ ] 2-minute demo video
+- [x] RazorpayX test-mode payout integration
+- [x] 2-minute demo video
 
 ### Phase 3: Scale & Optimize <sub>Apr 5 - 17</sub>
 
-- [ ] Advanced fraud detection (all 4 layers — Autoencoder, LSTM, GNN, XGBoost)
-- [ ] Instant payout system (simulated end-to-end)
-- [ ] Predictive risk engine with next-week forecasting
-- [ ] Worker dashboard (earnings protected, active coverage, trust score)
-- [ ] Admin dashboard (loss ratios, trigger feed, fraud flags, analytics)
-- [ ] Evidence Bundle for every claim (multi-source proof card)
-- [ ] 5-minute demo video + final pitch deck
+- [x] Advanced fraud detection (all 4 layers — Autoencoder, LSTM, GNN, XGBoost)
+- [x] Instant payout system (simulated end-to-end)
+- [x] Predictive risk engine with next-week forecasting
+- [x] Worker dashboard (earnings protected, active coverage, trust score)
+- [x] Admin dashboard (loss ratios, trigger feed, fraud flags, analytics)
+- [x] Evidence Bundle for every claim (multi-source proof card)
+- [x] GPS / Location Engine Hardening (Phase 3.1)
+- [x] 5-minute demo video + final pitch deck
 
 ```mermaid
 gantt
