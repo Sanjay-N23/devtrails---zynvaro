@@ -26,8 +26,8 @@ CITY_COORDINATES = {
     "Delhi":     {"lat": 28.6139, "lng": 77.2090, "radius_km": 40},
     "Bangalore": {"lat": 12.9716, "lng": 77.5946, "radius_km": 30},
     "Hyderabad": {"lat": 17.3850, "lng": 78.4867, "radius_km": 30},
-    "Chennai":   {"lat": 13.0827, "lng": 80.2707, "radius_km": 25},
-    "Pune":      {"lat": 18.5204, "lng": 73.8567, "radius_km": 25},
+    "Chennai":   {"lat": 13.0827, "lng": 80.2707, "radius_km": 40},
+    "Pune":      {"lat": 18.5204, "lng": 73.8567, "radius_km": 30},
     "Kolkata":   {"lat": 22.5726, "lng": 88.3639, "radius_km": 30},
 }
 
