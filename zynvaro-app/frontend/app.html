@@ -2502,13 +2502,19 @@ async function activatePolicy() {
       theme: { color: '#FF6B35' },
     };
 
-    alert('💳 RAZORPAY TEST MODE\n\nTo successfully simulate this payment for the demo:\n1. Do NOT scan the QR code with your real GPay/PhonePe/UPI.\n2. In the Razorpay window, select "Netbanking" -> "Success"\n3. OR use Test Card 4111-1111-1111-1111.\n\nClick OK to proceed to checkout.');
-
+    // Removed alert to allow the judge to intentionally fail the payment.
     const rzp = new Razorpay(options);
     rzp.on('payment.failed', function(resp) {
-      toast('Payment failed: ' + (resp.error?.description || 'Unknown error'), 'error');
+      toast('Razorpay Payment failed.', 'error');
       const freshBtn = document.getElementById('btn-activate-policy');
       if (freshBtn) { freshBtn.disabled = false; freshBtn.innerHTML = `Activate ${tierName}`; }
+      
+      // [DEMO PRIVILEGE] Prompt for forced activation
+      setTimeout(() => {
+          if (confirm("🚨 Razorpay Payment Failed (Test Mode)\n\n[DEMO PRIVILEGE]\nWould you like to use an Admin Override to bypass the payment gateway and force-activate this policy anyway?")) {
+              activatePolicyDirect(tierName);
+          }
+      }, 500);
     });
     rzp.open();
 
@@ -2616,10 +2622,17 @@ async function renewPolicy() {
       prefill: { name: currentUser?.full_name || '', contact: currentUser?.phone || '' },
       theme: { color: '#FF6B35' },
     };
-    alert('💳 RAZORPAY TEST MODE\n\nTo successfully simulate this renewal for the demo:\n1. Do NOT scan the QR code with your real GPay/PhonePe/UPI.\n2. In the Razorpay window, select "Netbanking" -> "Success"\n3. OR use Test Card 4111-1111-1111-1111.\n\nClick OK to proceed to checkout.');
+    // Removed alert to allow intentional failure.
     const rzp = new Razorpay(options);
     rzp.on('payment.failed', function(resp) {
       toast('Payment failed: ' + (resp.error?.description || 'Unknown'), 'error');
+      
+      // [DEMO PRIVILEGE] Prompt for forced renewal
+      setTimeout(() => {
+          if (confirm("🚨 Razorpay Payment Failed (Test Mode)\n\n[DEMO PRIVILEGE]\nWould you like to use an Admin Override to bypass the payment gateway and force-renew this policy anyway?")) {
+              renewPolicyDirect();
+          }
+      }, 500);
     });
     rzp.open();
   } catch(e) {
@@ -2849,8 +2862,24 @@ async function simulateTrigger() {
   } catch(e) {
     if (e.message && e.message.includes('|bypass_required')) {
       const msg = e.message.split('|')[0];
-      alert(`🚨 HARD ELIGIBILITY GATE ACTIVATED\n\n${msg}\n\n[DEMO MODE OVERRIDE]\nYou can override this strict geofence block by clicking the 'Simulate' button again to seamlessly experience the automated claim payout pipeline!`);
-      _simulatedBypassConfirmed = true;
+      toast(`🚨 ${msg}`, 'error');
+      
+      let overrideBtn = document.getElementById('btn-demo-override');
+      if (!overrideBtn) {
+        overrideBtn = document.createElement('button');
+        overrideBtn.id = 'btn-demo-override';
+        overrideBtn.className = 'btn btn-full';
+        overrideBtn.style = 'background:#1d1f27;color:var(--yellow);margin-top:8px;border:1px dashed var(--yellow);';
+        overrideBtn.innerHTML = '⚠️ DEMO PRIVILEGE: Force Override & Simulate';
+        overrideBtn.onclick = function() {
+            _simulatedBypassConfirmed = true;
+            this.style.display = 'none';
+            simulateTrigger();
+        };
+        const simBtn = document.getElementById('btn-simulate-trigger');
+        simBtn.parentNode.insertBefore(overrideBtn, simBtn.nextSibling);
+      }
+      overrideBtn.style.display = 'block';
     } else {
       toast(e.message, 'error');
     }
