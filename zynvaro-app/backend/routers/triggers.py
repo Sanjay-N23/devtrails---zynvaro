@@ -41,6 +41,7 @@ class TriggerEventResponse(BaseModel):
 class SimulateRequest(BaseModel):
     trigger_type: str
     city: str
+    bypass_gate: bool = False
 
 class LiveCheckResponse(BaseModel):
     city: str
@@ -288,6 +289,13 @@ async def simulate_trigger_event(
         req.trigger_type,
         platform=current_worker.platform,
     )
+    
+    if not requester_gate["eligible"] and not req.bypass_gate:
+        raise HTTPException(
+            status_code=403,
+            detail=f"{requester_gate['reason']}|bypass_required"
+        )
+        
     t = simulate_trigger(req.trigger_type, req.city)
 
     # Fetch current real reading for comparison (what-if framing)

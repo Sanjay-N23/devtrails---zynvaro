@@ -2502,6 +2502,8 @@ async function activatePolicy() {
       theme: { color: '#FF6B35' },
     };
 
+    alert('💳 RAZORPAY TEST MODE\n\nTo successfully simulate this payment for the demo:\n1. Do NOT scan the QR code with your real GPay/PhonePe/UPI.\n2. In the Razorpay window, select "Netbanking" -> "Success"\n3. OR use Test Card 4111-1111-1111-1111.\n\nClick OK to proceed to checkout.');
+
     const rzp = new Razorpay(options);
     rzp.on('payment.failed', function(resp) {
       toast('Payment failed: ' + (resp.error?.description || 'Unknown error'), 'error');
@@ -2614,6 +2616,7 @@ async function renewPolicy() {
       prefill: { name: currentUser?.full_name || '', contact: currentUser?.phone || '' },
       theme: { color: '#FF6B35' },
     };
+    alert('💳 RAZORPAY TEST MODE\n\nTo successfully simulate this renewal for the demo:\n1. Do NOT scan the QR code with your real GPay/PhonePe/UPI.\n2. In the Razorpay window, select "Netbanking" -> "Success"\n3. OR use Test Card 4111-1111-1111-1111.\n\nClick OK to proceed to checkout.');
     const rzp = new Razorpay(options);
     rzp.on('payment.failed', function(resp) {
       toast('Payment failed: ' + (resp.error?.description || 'Unknown'), 'error');
@@ -2785,6 +2788,8 @@ async function updateSimComparison() {
   }
 }
 
+let _simulatedBypassConfirmed = false;
+
 async function simulateTrigger() {
   const trigType = document.getElementById('sim-trigger-type').value;
   const city     = document.getElementById('sim-city').value;
@@ -2794,8 +2799,10 @@ async function simulateTrigger() {
   try {
     const res = await api('/triggers/simulate', {
       method: 'POST',
-      body: JSON.stringify({ trigger_type: trigType, city })
+      body: JSON.stringify({ trigger_type: trigType, city, bypass_gate: _simulatedBypassConfirmed })
     });
+    
+    _simulatedBypassConfirmed = false; // Reset after successful bypass
 
     // Show what-if comparison from the response
     if (res.current_reading) {
@@ -2840,7 +2847,13 @@ async function simulateTrigger() {
     })();
 
   } catch(e) {
-    toast(e.message, 'error');
+    if (e.message && e.message.includes('|bypass_required')) {
+      const msg = e.message.split('|')[0];
+      alert(`🚨 HARD ELIGIBILITY GATE ACTIVATED\n\n${msg}\n\n[DEMO MODE OVERRIDE]\nYou can override this strict geofence block by clicking the 'Simulate' button again to seamlessly experience the automated claim payout pipeline!`);
+      _simulatedBypassConfirmed = true;
+    } else {
+      toast(e.message, 'error');
+    }
   } finally {
     btn.disabled = false; btn.innerHTML = '⚡ Simulate Threshold Crossing';
   }
