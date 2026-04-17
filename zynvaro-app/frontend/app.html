@@ -1186,6 +1186,16 @@ body {
         <p style="font-size:9px;color:var(--muted);margin-top:4px;line-height:1.4;">For hackathon judges: tick to bypass the 24-hour waiting period so newly enrolled policies receive a payout immediately. This flag is never available in production.</p>
       </div>
 
+      <!-- Location bypass for demo/judge use only -->
+      <div id="location-bypass-demo-toggle" style="margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(37,211,102,0.08);border:1px solid rgba(37,211,102,0.2);">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#25d366;font-weight:600;">
+          <input type="checkbox" id="bypass-location" style="accent-color:#25d366;width:14px;height:14px;"
+            onchange="_simulatedLocationBypass = this.checked; document.getElementById('location-bypass-label').textContent = this.checked ? '📍 Location WAIVED (demo mode)' : '📍 GPS Authenticity active (max 25km)'">
+          <span id="location-bypass-label">📍 GPS Authenticity active (max 25km)</span>
+        </label>
+        <p style="font-size:9px;color:var(--muted);margin-top:4px;line-height:1.4;">For judges testing triggers outside the simulated city. Waives the GPS proximity check that normally flags distant workers for manual review.</p>
+      </div>
+
       <p style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;text-align:center;">
         This overrides real conditions to demonstrate the claim pipeline. In production, real API data triggers payouts autonomously.
       </p>
@@ -3143,6 +3153,7 @@ async function updateSimComparison() {
 }
 
 let _simulatedBypassConfirmed = false;
+let _simulatedLocationBypass = false;
 
 async function simulateTrigger() {
   const trigType = document.getElementById('sim-trigger-type').value;
@@ -3153,7 +3164,12 @@ async function simulateTrigger() {
   try {
     const res = await api('/triggers/simulate', {
       method: 'POST',
-      body: JSON.stringify({ trigger_type: trigType, city, bypass_gate: _simulatedBypassConfirmed })
+      body: JSON.stringify({ 
+        trigger_type: trigType, 
+        city, 
+        bypass_gate: _simulatedBypassConfirmed,
+        bypass_location: _simulatedLocationBypass
+      })
     });
     
     _simulatedBypassConfirmed = false; // Reset after successful bypass

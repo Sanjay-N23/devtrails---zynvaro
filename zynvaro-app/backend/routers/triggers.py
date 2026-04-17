@@ -46,6 +46,7 @@ class SimulateRequest(BaseModel):
     trigger_type: str
     city: str
     bypass_gate: bool = False
+    bypass_location: bool = False
     scenario_id: Optional[str] = None    # Idempotency key — same ID = same result
     scenario_name: Optional[str] = None  # Display name for audit (e.g. "Heavy Rainfall in Bangalore")
 
@@ -122,7 +123,7 @@ def _event_settlement_policy(event: TriggerEvent) -> dict:
     }
 
 
-def _worker_trigger_eligibility(worker: Worker, trigger_city: str, trigger_type: str, platform: Optional[str] = None) -> dict:
+def _worker_trigger_eligibility(worker: Worker, trigger_city: str, trigger_type: str, platform: Optional[str] = None, bypass_location: bool = False) -> dict:
     from services.fraud_engine import (
         get_recent_activity_snapshot,
         get_worker_location_context,
@@ -182,7 +183,7 @@ def _worker_trigger_eligibility(worker: Worker, trigger_city: str, trigger_type:
             "reason": "Recent device GPS does not map to a supported trigger city, so the event cannot auto-generate a claim.",
         }
 
-    if lat is not None and lng is not None:
+    if lat is not None and lng is not None and not bypass_location:
         zone = validate_gps_zone(lat, lng, trigger_city)
         if not zone["valid"]:
             return {
@@ -416,6 +417,7 @@ async def simulate_trigger_event(
         req.city,
         req.trigger_type,
         platform=current_worker.platform,
+        bypass_location=req.bypass_location,
     )
 
     t = simulate_trigger(req.trigger_type, req.city)
@@ -498,6 +500,7 @@ async def simulate_trigger_event(
         db,
         is_simulated=True,
         bypass_gate=req.bypass_gate,   # honour demo bypass flag
+        bypass_location=req.bypass_location,
         platform=current_worker.platform,
     )
 
@@ -623,6 +626,7 @@ def _auto_generate_claims(
     db: Session,
     is_simulated: bool = False,
     bypass_gate: bool = False,
+    bypass_location: bool = False,
     platform: Optional[str] = None,
 ):
     """
@@ -664,7 +668,7 @@ def _auto_generate_claims(
         claims_created = 0
         for policy in active_policies:
             worker = policy.worker
-            eligibility = _worker_trigger_eligibility(worker, city, trigger_type, platform=platform)
+            eligibility = _worker_trigger_eligibility(worker, city, trigger_type, platform=platform, bypass_location=bypass_location)
             if not eligibility["eligible"]:
                 continue
 
