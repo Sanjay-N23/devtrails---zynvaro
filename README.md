@@ -15,8 +15,12 @@
 
 [![Guidewire DEVTrails](https://img.shields.io/badge/🏆_Guidewire-DEVTrails_2026-FF6B35?style=for-the-badge)](https://devtrails.guidewire.com)
 [![Team](https://img.shields.io/badge/Team-AeroFyta-blueviolet?style=for-the-badge&logo=rocket&logoColor=white)](#-team-aerofyta)
-[![Phase](https://img.shields.io/badge/Phase_3.2-Grievance_%26_Appeals-6366f1?style=for-the-badge&logo=shield&logoColor=white)](#)
+[![Phase](https://img.shields.io/badge/Phase_3-Final_Build-6366f1?style=for-the-badge&logo=shield&logoColor=white)](#final-build-snapshot)
 [![Riders](https://img.shields.io/badge/Target-12.7M_Gig_Workers-E34F26?style=for-the-badge&logo=uber&logoColor=white)](#)
+[![Final Build](https://img.shields.io/badge/Final_Build-Judge_Demo_Ready-10B981?style=for-the-badge&logo=vercel&logoColor=white)](#final-build-snapshot)
+[![Explainability](https://img.shields.io/badge/Claims-Payout_Explainability-22C55E?style=for-the-badge&logo=googleanalytics&logoColor=white)](#final-build-snapshot)
+[![Source Trust](https://img.shields.io/badge/Data-Official_%2B_Fallback_Hierarchy-F59E0B?style=for-the-badge&logo=databricks&logoColor=white)](#final-build-snapshot)
+[![Bilingual PWA](https://img.shields.io/badge/PWA-English_%2B_Hindi-8B5CF6?style=for-the-badge&logo=googletranslate&logoColor=white)](#-phase-3-final-polish-demo-hardening)
 
 <br>
 
@@ -33,7 +37,53 @@
 
 > *Built for Guidewire DEVTrails 2026 — Unicorn Chase*
 
+### 🎯 [Open Hackathon Pitch Deck](https://drive.google.com/drive/folders/1frTJfKdSkVwUw3x9Sq5HKoOkvvS5g4YG?usp=sharing)
+
 </div>
+
+---
+
+<a name="pitch-deck"></a>
+
+> [!IMPORTANT]
+> ## 🎯 Hackathon Pitch Deck
+> **Open the Zynvaro presentation deck here:**  
+> **[View the Pitch Deck on Google Drive](https://drive.google.com/drive/folders/1frTJfKdSkVwUw3x9Sq5HKoOkvvS5g4YG?usp=sharing)**
+>
+> Judges and reviewers: this is the primary presentation link for the hackathon submission.
+
+---
+
+<a name="final-build-snapshot"></a>
+
+## ✨ Final Hackathon Build Snapshot
+
+> [!TIP]
+> This README is aligned to the current repo state for the hackathon submission. We are documenting the `BUILD NOW` scope clearly, and intentionally keeping future-only ideas out of the core submission story.
+
+<div align="center">
+
+| 🔍 Claim Clarity | 🛰️ Source Trust | ⚖️ Recovery Workflow | 🧾 Auditability |
+|:--|:--|:--|:--|
+| Payout explainability card with thresholds, reason text, payout formula, payment state, and appeal window | Official-first hierarchy, fallback routing, source badges, and confidence-aware settlement gates | Worker-facing appeals + grievances, admin case queue, 48h appeal window, 72h SLA | Immutable claim snapshots, grievance audit events, payment/disbursement transaction log |
+
+</div>
+
+### Submission Scope Status
+
+| Build Now Item | Status | What is visible in the current build |
+|:--|:--:|:--|
+| 1. Payout explainability card | ✅ | Claim cards and explainability payloads show threshold, measured value, zone result, payout rule, confidence, and appeal eligibility |
+| 2. Official-source hierarchy with fallback logic | ✅ | Live checks and triggers expose official vs fallback vs continuity source tiers with claim gating |
+| 3. Confidence score + source badge on every trigger/payout | ✅ | Trigger feeds, live-condition cards, and claim views surface confidence and source badges |
+| 4. Recent-activity eligibility check before payout | ✅ | Trigger automation evaluates worker activity before approving payout and routes edge cases to review |
+| 5. Waiting-period / cooling-off logic for new enrollments | ✅ | New policies enforce a 24h cooling-off window; renewals stay uninterrupted; judge demos can waive this explicitly |
+| 6. Grievance and appeals workflow | ✅ | Cases tab, structured appeal flow, worker messages, admin resolve/escalate/reopen queue |
+| 7. Consent center and privacy controls | 🟡 | Privacy/consent concerns can be filed through the grievance workflow today; a standalone consent-center UX remains future polish |
+| 8. Immutable audit logs for trigger, claim, and payout decisions | ✅ | Claim snapshots, grievance audit events, waiting-period snapshots, and transaction log data are persisted for review |
+
+> [!IMPORTANT]
+> For hackathon judging, the strongest features to open live are: `Triggers` for live-vs-simulated demo + source trust, `Claims` for explainability and confidence, and `Cases` for grievance / appeal workflow.
 
 ---
 
@@ -49,6 +99,8 @@
 
 | # | Section | What You'll Learn |
 |:-:|---------|------------------|
+| 🎯 | [Pitch Deck](#pitch-deck) | Direct link to the hackathon presentation |
+| ✨ | [Final Build Snapshot](#final-build-snapshot) | What shipped for the hackathon submission |
 | 🔥 | [The Crisis](#-the-crisis--why-this-matters) | Why 12.7M gig workers need this |
 | 🎯 | [Our Persona](#-our-persona--the-10-minute-sprinter) | Why Q-Commerce, not food delivery |
 | 🎬 | [Live Scenarios](#-live-scenarios--how-zynvaro-responds) | 4 real-world disruption walkthroughs |
@@ -971,33 +1023,43 @@ Follow this exact sequence to reproduce the demo video:
 #### Step 2 — Explore Dashboard
 - See **ACTIVE** policy status, weekly premium, max payout
 - Risk profile: city, zone risk score, claim history
-- Live trigger feed (3 seeded events pre-loaded)
+- Live trigger feed with source badges and confidence
+- Top-right refresh keeps the page current without hard reloading
+- Language toggle supports **English + Hindi** for demo accessibility
 
 #### Step 3 — View Policy & AI Pricing
 - Navigate to **Policy** tab
 - Click any tier card → **Premium Breakdown** opens
 - See: Zone loading, seasonal factor, streak discount, AI explanation
 - Click **Activate** to switch tiers
+- Renewal copy explicitly states that **Razorpay Checkout is manual in test mode** and there is **no silent auto-debit**
 
 #### Step 4 — Fire a Parametric Trigger ← THE MAGIC MOMENT
 1. Navigate to **Triggers** tab
-2. Select: `Extreme Rain / Flooding` + City: `Bangalore`
-3. Click **🚨 Fire Trigger & Auto-Generate Claims**
-4. Wait 3 seconds…
-5. **WhatsApp-style notification appears** showing auto-credited payout 🎉
-6. Click "View My Claims" — lands on Claims page with new claim auto-generated
+2. Review **Live Conditions** and the **Real vs Simulated** panel for the worker's city
+3. Click **Simulate Threshold Crossing**
+4. If the real weather is still normal, the app reveals a **judge-only override CTA** so reviewers can still see the end-to-end insurance journey
+5. If needed, enable the explicit **Cooling-off waiver** and **Location / GPS waiver** toggles for non-production judging
+6. Continue the synthetic workflow and watch the trigger create a claim with payout metadata
 
-> **Note:** The backend also autonomously polls all active cities every 15 minutes via APScheduler. Claims can appear without any button press — the "Simulate" button just speeds it up for demo purposes.
+> **Note:** Live checks are city-aware and source-aware. The UI now distinguishes between real monitored conditions and synthetic demo overrides so judges can understand exactly what is live data vs what is forced for demonstration.
 
-#### Step 5 — Review Claims (Zero-Touch)
-- Claim shows: trigger type, payout amount, authenticity score bar
-- Status: `AUTO APPROVED` — no forms, no calls, no waiting
-- Payment ref: `MOCK-UPI-CLM-XXXXXXXX`
+#### Step 5 — Review Claims (Explainability + Trust)
+- Open the generated claim in **Claims**
+- Inspect confidence, source tier, measured vs threshold values, payout rule, and worker-safe explanation text
+- Denied or review-routed claims can surface a **48-hour appeal CTA**
+- Approved payouts display payment-state context rather than pretending money was silently auto-debited
 
-#### Step 6 — Admin Dashboard
+#### Step 6 — Cases & Appeals
+- Navigate to **Cases**
+- Submit or inspect an appeal / grievance
+- Review SLA promise, case status badges, worker messages, and immutable decision trail
+
+#### Step 7 — Admin Dashboard
 - Navigate to **Admin** tab
 - See: platform-wide stats, workers table with zone risk %, loss ratio gauge
 - Claims by trigger type breakdown
+- Case resolution actions: triage, resolve, escalate, reopen
 
 ---
 
@@ -1095,10 +1157,16 @@ The backend auto-seeds on first start:
 
 Throughout the final phase of development, the following critical updates were successfully implemented to guarantee an error-free, idempotent presentation experience for the Guidewire DEVTrails Hackathon:
 
-*   **Progressive Web App (PWA) Client Routing:** Implemented dynamic origin routing in the frontend to automatically handle CORS and successfully bridge `devtrails-zynvaro.onrender.com` without hardcoded `localhost` limitations. 
+*   **Progressive Web App (PWA) Client Routing:** Implemented dynamic origin routing in the frontend to automatically handle CORS and successfully bridge `devtrails-zynvaro.onrender.com` without hardcoded `localhost` limitations.
+*   **City-Aware Live Monitoring:** The dashboard and triggers flows now use the logged-in worker's city and platform instead of generic seeded Bangalore-style history.
+*   **Official vs Fallback Signal Trust:** Live checks and trigger payloads expose source hierarchy, confidence score, and manual-review gating so fallback data is not misrepresented as fully authoritative.
+*   **Judge Demo Override UX:** When real-time conditions are normal, the app now clearly offers a judge-only bypass path to show the full insurance workflow without pretending the live APIs already crossed threshold.
+*   **Razorpay Clarity:** Renewal and activation copy now clearly state when Razorpay Checkout is manual or when demo mode is active, avoiding the false impression of hidden background auto-debit.
+*   **Refresh / Loading Hardening:** Header and card refresh controls now behave like real in-app refreshes rather than looking broken or forcing a full-page reload.
+*   **Bilingual Accessibility:** Key worker journeys now support English + Hindi labels/copy for hackathon demos and broader readability.
 *   **Database Schema Automation:** Included dynamic SQLite `ALTER TABLE` migrations on startup to inject trailing Phase 3 columns (`claim_eligible_at`, `is_renewal`, etc.) to prevent internal 500 errors during rapid deployments.
-*   **UI/UX Component Anchoring:** Enforced fixed position anchors with `max-int` Z-indexes on checkout bypass buttons, modals, and overlays so they cleanly float over generic elements and nested components (like the Razorpay checkout iFrames).
-*   **Idempotent Background Jobs:** Ripped out hard HTTP 403 API crashes for ineligible simulations and refactored them to fail gracefully into the Manual Review database queue. This keeps the backend fully idempotent and shifts the bypass logic cleanly onto the frontend.
+*   **Idempotent Background Jobs:** Hard 403 crashes for ineligible simulations were refactored to degrade into controlled review / skip paths, keeping demo runs stable and repeatable.
+*   **Cap + Dedup Guardrails:** Weekly cap enforcement and duplicate-trigger suppression remain active even in demo override flows, so the showcase still behaves like an honest insurance system.
 
 ---
 
@@ -1106,9 +1174,12 @@ Throughout the final phase of development, the following critical updates were s
 
 To allow judges to smoothly evaluate the platform without waiting 24 hours or traveling across India, we've built **Demo Overrides** directly into the UI (strictly gated to non-production environments):
 
-1. **Payment Bypass:** The Razorpay test-mode integration features a floating **"✅ Simulate Payment Success"** button. This intercepts the payment gateway during Activation and Renewal flows and forces a successful `MOCK_ORDER` transaction, simulating instant end-to-end receipt generation.
-2. **Cooling-Off Waiver:** Zynvaro enforces a mandatory 24-hour waiting period on new policies to prevent fraud. When simulating a trigger, tick **"🔔 Cooling-off WAIVED"** to bypass this and immediately qualify a newly purchased policy for a payout.
-3. **Location (GPS) Waiver:** The fraud engine calculates the distance between the simulated trigger and the worker's device GPS. If > 25km, automation is blocked. Judges testing the app from outside the trigger city should tick **"📍 Location WAIVED"** to simulate being within the disaster radius and experience the zero-touch claim processing.
+1. **Live-Condition Override:** If Chennai / Mumbai / Delhi weather is currently normal, the Triggers page surfaces a dedicated judge CTA to bypass the live threshold and still demonstrate the claim journey end to end.
+2. **Payment Bypass:** The Razorpay test-mode integration still supports a floating **"✅ Simulate Payment Success"** action in demo mode so activation / renewal flows can be completed quickly during judging.
+3. **Cooling-Off Waiver:** Zynvaro enforces a mandatory 24-hour waiting period on new policies to prevent fraud. When simulating a trigger, tick the cooling-off waiver to immediately qualify a newly purchased policy for a payout.
+4. **Location (GPS) Waiver:** The fraud engine calculates the distance between the simulated trigger and the worker's device GPS. If the worker sits outside the trigger radius, judges can explicitly waive the GPS proximity check for demo purposes.
+
+> These overrides are designed to be visible and explicit. The UI distinguishes between `live`, `fallback`, and `synthetic` states so the demo remains transparent.
 
 ---
 
