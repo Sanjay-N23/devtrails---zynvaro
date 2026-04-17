@@ -1074,12 +1074,12 @@ body {
     <div class="page-subtitle">AI-calculated premiums for your zone &amp; season.</div>
 
     <div id="policy-active-banner" class="card hidden" style="border:2px solid var(--green);">
-      <div class="flex items-center justify-between">
-        <div>
+      <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; justify-content:space-between;">
+        <div style="flex:1 1 200px; min-width:0;">
           <div class="fw-700 text-green" id="pol-active-tier">Active Policy</div>
           <div class="text-muted text-sm mt-1" id="pol-active-detail"></div>
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2" style="flex: 0 0 auto; margin-top: 4px;">
           <button class="btn btn-sm" style="background:var(--orange);color:#000;font-weight:700;" onclick="renewPolicy()">Renew</button>
           <button class="btn btn-danger btn-sm" onclick="cancelPolicy()">Cancel</button>
         </div>
