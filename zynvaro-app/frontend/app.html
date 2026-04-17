@@ -3251,6 +3251,9 @@ function runPendingJudgeSimulation() {
 function showSimDemoOverride(state, extraNote = '', options = {}) {
   const panel = document.getElementById('sim-demo-override');
   if (!panel || !state) return;
+  // CRITICAL: Default to enabling both bypasses so the override button actually works
+  if (options.enableCoolingOffBypass === undefined) options.enableCoolingOffBypass = true;
+  if (options.enableLocationBypass === undefined) options.enableLocationBypass = true;
   const actionLabel = options.actionLabel || '⚠️ Bypass Live Conditions And Show Full Insurance Workflow';
   const detailText = options.detailText || `
         For judges, you can still push the signal synthetically to

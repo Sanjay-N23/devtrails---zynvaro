@@ -169,7 +169,7 @@ def _worker_trigger_eligibility(worker: Worker, trigger_city: str, trigger_type:
                 "reason": f"Worker platform '{worker.platform}' does not match monitored platform '{platform}'.",
             }
 
-    if source == "recent_gps_unmatched":
+    if source == "recent_gps_unmatched" and not bypass_location:
         return {
             "eligible": False,
             "effective_city": effective_city,
@@ -202,19 +202,20 @@ def _worker_trigger_eligibility(worker: Worker, trigger_city: str, trigger_type:
                 ),
             }
 
-    if not effective_city or effective_city.lower() != trigger_city.lower():
-        return {
-            "eligible": False,
-            "effective_city": effective_city,
-            "location_source": source,
-            "claim_lat": lat,
-            "claim_lng": lng,
-            "recent_activity_valid": True,
-            "recent_activity_at": recent_activity.get("activity_at"),
-            "recent_activity_age_hours": recent_activity.get("activity_age_hours"),
-            "recent_activity_reason": recent_activity.get("reason"),
-            "reason": f"Worker is resolved to {effective_city or 'an unknown city'}, not {trigger_city}.",
-        }
+    if not bypass_location:
+        if not effective_city or effective_city.lower() != trigger_city.lower():
+            return {
+                "eligible": False,
+                "effective_city": effective_city,
+                "location_source": source,
+                "claim_lat": lat,
+                "claim_lng": lng,
+                "recent_activity_valid": True,
+                "recent_activity_at": recent_activity.get("activity_at"),
+                "recent_activity_age_hours": recent_activity.get("activity_age_hours"),
+                "recent_activity_reason": recent_activity.get("reason"),
+                "reason": f"Worker is resolved to {effective_city or 'an unknown city'}, not {trigger_city}.",
+            }
 
     return {
         "eligible": True,
@@ -843,5 +844,10 @@ def _auto_generate_claims(
             claims_created += 1
 
         db.commit()
+        print(f"[TriggerClaims] Background task complete for event {event_id}: {claims_created} claim(s) created.")
+    except Exception as bg_err:
+        print(f"[TriggerClaims] ❌ BACKGROUND TASK CRASHED for event {event_id}: {bg_err}")
+        import traceback
+        traceback.print_exc()
     finally:
         db.close()
