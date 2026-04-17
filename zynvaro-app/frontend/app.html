@@ -2895,18 +2895,25 @@ async function renewPolicy() {
           showPaymentRecoveryModal(response.razorpay_payment_id);
         }
       },
-      modal: { ondismiss: function() { toast('Renewal cancelled.', 'info'); } },
+      modal: {
+        ondismiss: function() {
+          if (_bypassActive) return;
+          toast('Renewal cancelled.', 'info');
+        }
+      },
       prefill: { name: currentUser?.full_name || '', contact: currentUser?.phone || '' },
       theme: { color: '#FF6B35' },
     };
     // Removed alert to allow intentional failure.
     const rzp = new Razorpay(options);
+    let _bypassActive = false;
     
     // Enable demo bypass
     const bypassBtn = document.getElementById('btn-demo-bypass-payment');
     if (bypassBtn) {
         bypassBtn.classList.remove('hidden');
         window.bypassDemoPayment = async function() {
+            _bypassActive = true;
             bypassBtn.classList.add('hidden');
             rzp.close();
             hidePremiumBreakdown();
