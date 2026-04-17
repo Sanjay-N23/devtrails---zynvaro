@@ -50,6 +50,14 @@ def run_sqlite_startup_migrations():
             "recent_activity_at": "ALTER TABLE claims ADD COLUMN recent_activity_at DATETIME",
             "recent_activity_age_hours": "ALTER TABLE claims ADD COLUMN recent_activity_age_hours FLOAT",
             "recent_activity_reason": "ALTER TABLE claims ADD COLUMN recent_activity_reason TEXT",
+            # Cooling-off and waiting-period snapshot columns (Phase 3)
+            "cooling_off_cleared": "ALTER TABLE claims ADD COLUMN cooling_off_cleared BOOLEAN DEFAULT 1",
+            "cooling_off_hours_at_claim": "ALTER TABLE claims ADD COLUMN cooling_off_hours_at_claim FLOAT",
+            "waiting_decision": "ALTER TABLE claims ADD COLUMN waiting_decision VARCHAR(30)",
+            "waiting_reason_code": "ALTER TABLE claims ADD COLUMN waiting_reason_code VARCHAR(50)",
+            "claim_eligible_at_snapshot": "ALTER TABLE claims ADD COLUMN claim_eligible_at_snapshot DATETIME",
+            "event_time_used": "ALTER TABLE claims ADD COLUMN event_time_used DATETIME",
+            "waiting_rule_version": "ALTER TABLE claims ADD COLUMN waiting_rule_version VARCHAR(20)",
         },
         # Demo Payment Bypass audit columns (added in session fc46eca3)
         "payout_transactions": {

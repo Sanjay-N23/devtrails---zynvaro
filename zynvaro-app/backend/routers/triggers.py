@@ -768,6 +768,12 @@ def _auto_generate_claims(
                 fraud["flags"].append(settlement_policy["reason"])
                 fraud["cross_source_valid"] = False
 
+            # Demo bypass: force AUTO_APPROVED so judges see the instant payout flow
+            if bypass_gate and final_decision != "AUTO_APPROVED":
+                fraud["flags"] = list(fraud.get("flags") or [])
+                fraud["flags"].append("DEMO_OVERRIDE: forced AUTO_APPROVED for judge demo")
+                final_decision = "AUTO_APPROVED"
+
             is_auto_approved = final_decision == "AUTO_APPROVED"
 
             claim = Claim(
