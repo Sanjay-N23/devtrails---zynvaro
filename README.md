@@ -1091,6 +1091,17 @@ The backend auto-seeds on first start:
 
 ---
 
+## 🛠️ Phase 3 Final Polish (Demo Hardening)
+
+Throughout the final phase of development, the following critical updates were successfully implemented to guarantee an error-free, idempotent presentation experience for the Guidewire DEVTrails Hackathon:
+
+*   **Progressive Web App (PWA) Client Routing:** Implemented dynamic origin routing in the frontend to automatically handle CORS and successfully bridge `devtrails-zynvaro.onrender.com` without hardcoded `localhost` limitations. 
+*   **Database Schema Automation:** Included dynamic SQLite `ALTER TABLE` migrations on startup to inject trailing Phase 3 columns (`claim_eligible_at`, `is_renewal`, etc.) to prevent internal 500 errors during rapid deployments.
+*   **UI/UX Component Anchoring:** Enforced fixed position anchors with `max-int` Z-indexes on checkout bypass buttons, modals, and overlays so they cleanly float over generic elements and nested components (like the Razorpay checkout iFrames).
+*   **Idempotent Background Jobs:** Ripped out hard HTTP 403 API crashes for ineligible simulations and refactored them to fail gracefully into the Manual Review database queue. This keeps the backend fully idempotent and shifts the bypass logic cleanly onto the frontend.
+
+---
+
 ## 🧪 Hackathon Demo Overrides
 
 To allow judges to smoothly evaluate the platform without waiting 24 hours or traveling across India, we've built **Demo Overrides** directly into the UI (strictly gated to non-production environments):
