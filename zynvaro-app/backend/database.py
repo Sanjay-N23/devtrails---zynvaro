@@ -42,6 +42,25 @@ def run_sqlite_startup_migrations():
             "recent_activity_age_hours": "ALTER TABLE claims ADD COLUMN recent_activity_age_hours FLOAT",
             "recent_activity_reason": "ALTER TABLE claims ADD COLUMN recent_activity_reason TEXT",
         },
+        # Demo Payment Bypass audit columns (added in session fc46eca3)
+        "payout_transactions": {
+            "is_demo_bypass": "ALTER TABLE payout_transactions ADD COLUMN is_demo_bypass BOOLEAN DEFAULT 0",
+            "bypass_source_screen": "ALTER TABLE payout_transactions ADD COLUMN bypass_source_screen VARCHAR(50)",
+            "original_provider_error": "ALTER TABLE payout_transactions ADD COLUMN original_provider_error TEXT",
+            "environment_at_bypass": "ALTER TABLE payout_transactions ADD COLUMN environment_at_bypass VARCHAR(20)",
+        },
+        # Simulate Trigger / What-If scenario audit columns (added in session fc46eca3)
+        "trigger_events": {
+            "confidence_score": "ALTER TABLE trigger_events ADD COLUMN confidence_score FLOAT DEFAULT 100.0",
+            "source_log": "ALTER TABLE trigger_events ADD COLUMN source_log TEXT",
+            "source_type": "ALTER TABLE trigger_events ADD COLUMN source_type VARCHAR(30) DEFAULT 'LIVE'",
+            "scenario_id": "ALTER TABLE trigger_events ADD COLUMN scenario_id VARCHAR(40)",
+            "scenario_name": "ALTER TABLE trigger_events ADD COLUMN scenario_name VARCHAR(100)",
+            "scenario_created_by": "ALTER TABLE trigger_events ADD COLUMN scenario_created_by INTEGER",
+            "scenario_created_by_role": "ALTER TABLE trigger_events ADD COLUMN scenario_created_by_role VARCHAR(30)",
+            "pipeline_run_id": "ALTER TABLE trigger_events ADD COLUMN pipeline_run_id VARCHAR(40)",
+            "original_environment": "ALTER TABLE trigger_events ADD COLUMN original_environment VARCHAR(20)",
+        },
     }
 
     with engine.begin() as conn:

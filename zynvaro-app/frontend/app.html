@@ -2696,6 +2696,7 @@ async function activatePolicy() {
       },
       modal: {
         ondismiss: function() {
+          if (_bypassActive) return; // bypass triggered rzp.close() — suppress cancel toast
           toast('Payment cancelled. Policy not activated.', 'info');
           const freshBtn = document.getElementById('btn-activate-policy');
           if (freshBtn) { freshBtn.disabled = false; freshBtn.innerHTML = `Activate ${tierName}`; }
@@ -2710,12 +2711,14 @@ async function activatePolicy() {
 
     // Removed alert to allow the judge to intentionally fail the payment.
     const rzp = new Razorpay(options);
+    let _bypassActive = false; // prevent ondismiss toast when bypass triggers rzp.close()
     
     // Enable demo bypass
     const bypassBtn = document.getElementById('btn-demo-bypass-payment');
     if (bypassBtn) {
         bypassBtn.classList.remove('hidden');
         window.bypassDemoPayment = async function() {
+            _bypassActive = true;
             bypassBtn.classList.add('hidden');
             rzp.close(); // Close Razorpay
             hidePremiumBreakdown();
