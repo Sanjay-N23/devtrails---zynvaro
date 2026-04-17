@@ -34,6 +34,26 @@ from models import (
 _razorpay_client = None
 
 
+def _ensure_recent_activity_gate(claim: Claim, worker: Worker) -> None:
+    """
+    Prevent payouts for claims that do not have recent user activity evidence.
+    """
+    if getattr(claim, "recent_activity_valid", None) is False:
+        raise ValueError(getattr(claim, "recent_activity_reason", None) or "Recent activity eligibility failed.")
+    if getattr(claim, "recent_activity_valid", None) is True:
+        return
+
+    from services.fraud_engine import get_recent_activity_snapshot
+
+    snapshot = get_recent_activity_snapshot(worker)
+    claim.recent_activity_valid = snapshot["eligible"]
+    claim.recent_activity_at = snapshot.get("activity_at")
+    claim.recent_activity_age_hours = snapshot.get("activity_age_hours")
+    claim.recent_activity_reason = snapshot.get("reason")
+    if not snapshot["eligible"]:
+        raise ValueError(snapshot.get("reason") or "Recent activity eligibility failed.")
+
+
 def _get_rzp_key_id():
     return os.getenv("RAZORPAY_KEY_ID", "")
 
@@ -226,6 +246,7 @@ def initiate_payout(claim: Claim, worker: Worker, db: Session) -> PayoutTransact
 
     Returns the PayoutTransaction record.
     """
+    _ensure_recent_activity_gate(claim, worker)
     if is_razorpay_configured():
         return _create_razorpay_payout(claim, worker, db)
     else:

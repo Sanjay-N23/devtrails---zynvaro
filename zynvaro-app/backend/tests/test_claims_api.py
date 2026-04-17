@@ -29,8 +29,11 @@ import pytest
 from models import (
     Claim,
     ClaimStatus,
+    PayoutTransaction,
+    PayoutTransactionStatus,
     PolicyStatus,
     PolicyTier,
+    TransactionType,
     TriggerType,
     Worker,
     Policy,
@@ -125,6 +128,41 @@ class TestEnrichClaim:
         response = enrich_claim(claim)
 
         assert response.policy_tier is None
+
+    def test_enrich_claim_includes_explainability_fields(
+        self, test_db, make_worker, make_policy, make_trigger, make_claim
+    ):
+        worker = make_worker()
+        policy = make_policy(worker=worker)
+        trigger = make_trigger(
+            city="Chennai",
+            threshold_value=64.5,
+            confidence_score=88.5,
+            source_primary="IMD",
+            source_secondary="OpenWeatherMap",
+            source_log="Primary: IMD\nSecondary: OpenWeatherMap\nCross-source validation: PASSED",
+        )
+        claim = make_claim(
+            worker=worker,
+            policy=policy,
+            trigger=trigger,
+            trigger_confidence_score=81.0,
+            appeal_status="initiated",
+            appeal_reason="Rain impact was localized to my delivery zone.",
+            appealed_at=datetime.utcnow(),
+        )
+
+        test_db.refresh(claim)
+        response = enrich_claim(claim)
+
+        assert response.trigger_confidence_score == pytest.approx(81.0)
+        assert response.source_log == "Primary: IMD\nSecondary: OpenWeatherMap\nCross-source validation: PASSED"
+        assert response.appeal_status == "initiated"
+        assert response.appeal_reason == "Rain impact was localized to my delivery zone."
+        assert response.trigger_threshold_value == pytest.approx(64.5)
+        assert response.trigger_source_primary == "IMD"
+        assert response.trigger_source_secondary == "OpenWeatherMap"
+        assert response.trigger_city == "Chennai"
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -540,6 +578,120 @@ class TestGetClaimDetail:
         assert resp.status_code == 401
 
 
+class TestClaimActions:
+
+    def test_worker_can_submit_persisted_appeal(
+        self, authed_client, make_policy, make_trigger, make_claim
+    ):
+        """
+        POST /claims/{id}/appeal now routes to the new GrievanceCase system.
+        Request body changed to {category_code, worker_summary_text}.
+        Response is a GrievanceCaseOut (not a ClaimResponse).
+        """
+        worker = authed_client.worker
+        policy = make_policy(worker=worker)
+        trigger = make_trigger(city=worker.city, confidence_score=76.0, source_log="Primary: IMD")
+        claim = make_claim(
+            worker=worker,
+            policy=policy,
+            trigger=trigger,
+            paid_at=None,
+            payment_ref=None,
+        )
+
+        resp = authed_client.post(
+            f"/claims/{claim.id}/appeal",
+            json={
+                "category_code": "ZONE_MISMATCH_DISPUTE",
+                "worker_summary_text": "Rain impact was local to my exact zone and needs review.",
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        # New appeal creates a GrievanceCase row
+        assert body["case_type"] == "APPEAL"
+        assert body["category_code"] == "ZONE_MISMATCH_DISPUTE"
+        assert body["public_case_id"].startswith("GRV-")
+        assert body["status"] == "TRIAGED"
+        assert body["sla_due_at"] is not None
+        # Claim.appeal_status is also updated for backward compat
+        assert claim.appeal_status == "initiated"
+
+    def test_admin_status_endpoint_can_mark_claim_paid(
+        self, authed_client, make_policy, make_trigger, make_claim
+    ):
+        worker = authed_client.worker
+        policy = make_policy(worker=worker)
+        trigger = make_trigger(city=worker.city)
+        claim = make_claim(
+            worker=worker,
+            policy=policy,
+            trigger=trigger,
+            status=ClaimStatus.PENDING_REVIEW,
+            paid_at=None,
+            payment_ref=None,
+            auto_processed=False,
+        )
+
+        resp = authed_client.post(
+            f"/claims/{claim.id}/status",
+            json={"status": "paid"},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == ClaimStatus.PAID
+        assert body["payment_ref"]
+        assert body["payout_status"] in {"settled", "pending"}
+
+    def test_admin_status_endpoint_can_mark_claim_rejected(
+        self, authed_client, make_policy, make_trigger, make_claim
+    ):
+        worker = authed_client.worker
+        policy = make_policy(worker=worker)
+        trigger = make_trigger(city=worker.city)
+        claim = make_claim(
+            worker=worker,
+            policy=policy,
+            trigger=trigger,
+            status=ClaimStatus.PENDING_REVIEW,
+            paid_at=None,
+            payment_ref=None,
+            auto_processed=False,
+        )
+
+        resp = authed_client.post(
+            f"/claims/{claim.id}/status",
+            json={"status": "rejected"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == ClaimStatus.REJECTED
+
+    def test_admin_status_endpoint_blocks_payout_without_recent_activity(
+        self, authed_client, make_policy, make_trigger, make_claim
+    ):
+        worker = authed_client.worker
+        policy = make_policy(worker=worker)
+        trigger = make_trigger(city=worker.city)
+        claim = make_claim(
+            worker=worker,
+            policy=policy,
+            trigger=trigger,
+            status=ClaimStatus.PENDING_REVIEW,
+            paid_at=None,
+            payment_ref=None,
+            auto_processed=False,
+            recent_activity_valid=False,
+            recent_activity_reason="Only signup-seeded profile data is available. A real app session or GPS ping is required before payout.",
+        )
+
+        resp = authed_client.post(
+            f"/claims/{claim.id}/status",
+            json={"status": "paid"},
+        )
+        assert resp.status_code == 400
+        assert "recent-activity gate" in resp.json()["detail"]
+
+
 # ─────────────────────────────────────────────────────────────────
 # GET /claims/admin/workers
 # ─────────────────────────────────────────────────────────────────
@@ -811,3 +963,88 @@ class TestAdminStats:
 
         assert breakdown.get(TriggerType.HEAVY_RAINFALL, 0) >= 2
         assert breakdown.get(TriggerType.HAZARDOUS_AQI, 0) >= 1
+
+
+class TestAdminTransactions:
+
+    def test_admin_transactions_include_payout_evidence_fields(
+        self, test_db, authed_client, make_policy, make_trigger, make_claim
+    ):
+        worker = authed_client.worker
+        policy = make_policy(worker=worker)
+        trigger = make_trigger(
+            trigger_type=TriggerType.HEAVY_RAINFALL,
+            city="Chennai",
+            confidence_score=72.0,
+            source_primary="IMD district weather feed",
+            source_secondary="OpenWeatherMap live continuity feed",
+            source_log="Primary: IMD district weather feed\nSecondary: OpenWeatherMap live continuity feed\nCross-source validation: PENDING",
+            is_validated=False,
+        )
+        claim = make_claim(
+            worker=worker,
+            policy=policy,
+            trigger=trigger,
+            trigger_confidence_score=68.0,
+        )
+        txn = PayoutTransaction(
+            transaction_type=TransactionType.CLAIM_PAYOUT,
+            claim_id=claim.id,
+            worker_id=worker.id,
+            amount_requested=claim.payout_amount,
+            amount_settled=claim.payout_amount,
+            status=PayoutTransactionStatus.SETTLED,
+            gateway_name="razorpay",
+            internal_txn_id="txn-claim-evidence-001",
+            upi_ref="plink_test_claim_001",
+        )
+        test_db.add(txn)
+        test_db.commit()
+
+        resp = authed_client.get("/claims/admin/transactions?limit=10")
+        assert resp.status_code == 200
+        rows = resp.json()
+        payout_row = next(r for r in rows if r["id"] == txn.id)
+
+        assert payout_row["claim_id"] == claim.id
+        assert payout_row["claim_number"] == claim.claim_number
+        assert payout_row["trigger_type"] == TriggerType.HEAVY_RAINFALL
+        assert payout_row["trigger_city"] == "Chennai"
+        assert payout_row["evidence_confidence_score"] == pytest.approx(68.0)
+        assert payout_row["evidence_source_primary"] == "IMD district weather feed"
+        assert payout_row["evidence_source_secondary"] == "OpenWeatherMap live continuity feed"
+        assert "Cross-source validation" in payout_row["evidence_source_log"]
+        assert payout_row["evidence_source_tier"] == "secondary"
+        assert payout_row["evidence_is_validated"] is False
+
+    def test_admin_transactions_include_checkout_proof_for_premium_rows(
+        self, test_db, authed_client, make_policy
+    ):
+        worker = authed_client.worker
+        policy = make_policy(worker=worker)
+        txn = PayoutTransaction(
+            transaction_type=TransactionType.PREMIUM_PAYMENT,
+            policy_id=policy.id,
+            worker_id=worker.id,
+            amount_requested=policy.weekly_premium,
+            amount_settled=policy.weekly_premium,
+            status=PayoutTransactionStatus.SETTLED,
+            gateway_name="razorpay",
+            internal_txn_id="txn-premium-proof-001",
+            razorpay_order_id="order_test_001",
+            razorpay_payment_id="pay_test_001",
+        )
+        test_db.add(txn)
+        test_db.commit()
+
+        resp = authed_client.get("/claims/admin/transactions?limit=10")
+        assert resp.status_code == 200
+        rows = resp.json()
+        premium_row = next(r for r in rows if r["id"] == txn.id)
+
+        assert premium_row["transaction_type"] == TransactionType.PREMIUM_PAYMENT
+        assert premium_row["evidence_confidence_score"] == pytest.approx(100.0)
+        assert premium_row["evidence_source_primary"] == "Razorpay Checkout"
+        assert premium_row["evidence_source_secondary"] == "Gateway callback verification"
+        assert premium_row["evidence_source_tier"] == "official"
+        assert premium_row["evidence_is_validated"] is True

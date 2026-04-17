@@ -174,6 +174,21 @@ class TestSimulateTrigger:
         assert isinstance(body["description"], str)
         assert len(body["description"]) > 0
 
+    def test_simulate_returns_and_persists_confidence_and_source_log(self, authed_client, test_db):
+        resp = authed_client.post(
+            "/triggers/simulate",
+            json={"trigger_type": "Heavy Rainfall", "city": "Bangalore"},
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["confidence_score"] == pytest.approx(100.0)
+        assert "Zynvaro Simulation Engine" in body["source_log"]
+
+        event = test_db.query(TriggerEvent).filter(TriggerEvent.id == body["trigger_event_id"]).first()
+        assert event is not None
+        assert event.confidence_score == pytest.approx(100.0)
+        assert "Zynvaro Simulation Engine" in (event.source_log or "")
+
     @pytest.mark.parametrize("trigger_type", ALL_TRIGGER_TYPES)
     def test_simulate_all_6_trigger_types_accepted(self, authed_client, trigger_type):
         resp = authed_client.post(
@@ -446,6 +461,27 @@ class TestAutoGenerateClaims:
             last_known_lat=13.0827,
             last_known_lng=80.2707,
             last_location_at=datetime.utcnow(),
+        )
+        make_policy(worker=worker, status=PolicyStatus.ACTIVE)
+
+        with _patch_session_local(test_db):
+            resp = authed_client.post(
+                "/triggers/simulate",
+                json={"trigger_type": "Heavy Rainfall", "city": "Bangalore"},
+            )
+        assert resp.status_code == 201
+
+        test_db.expire_all()
+        claims = test_db.query(Claim).filter(Claim.worker_id == worker.id).all()
+        assert claims == []
+
+    def test_simulate_blocks_signup_seeded_activity_from_triggering_claims(
+        self, authed_client, test_db, make_worker, make_policy
+    ):
+        worker = make_worker(
+            city="Bangalore",
+            last_location_at=datetime.utcnow(),
+            last_activity_source="signup_seed",
         )
         make_policy(worker=worker, status=PolicyStatus.ACTIVE)
 
@@ -800,6 +836,8 @@ class TestLiveCheck:
                 "is_validated": True,
                 "severity": "high",
                 "description": "Heavy Rainfall threshold exceeded",
+                "confidence_score": 84.0,
+                "source_log": "Primary: IMD\nSecondary: OpenWeatherMap\nCross-source validation: PASSED",
                 "detected_at": datetime.utcnow().isoformat(),
                 "expires_at": (datetime.utcnow() + timedelta(hours=6)).isoformat(),
             }
@@ -811,6 +849,8 @@ class TestLiveCheck:
         assert body["triggers_fired"] == 1
         assert len(body["events"]) == 1
         assert body["events"][0]["trigger_type"] == "Heavy Rainfall"
+        assert body["events"][0]["confidence_score"] == pytest.approx(84.0)
+        assert "Primary: IMD" in body["events"][0]["source_log"]
 
     def test_live_check_saves_fired_event_to_db(self, authed_client, test_db):
         """Fired triggers from /live must be persisted to the trigger_events table."""
@@ -841,3 +881,65 @@ class TestLiveCheck:
         )
         assert saved is not None
         assert saved.measured_value == pytest.approx(46.2)
+
+    def test_live_check_fallback_only_signal_does_not_create_claims(
+        self, authed_client, test_db, make_policy
+    ):
+        worker = authed_client.worker
+        make_policy(worker=worker, status=PolicyStatus.ACTIVE)
+        mock_fired = [
+            {
+                "trigger_type": "Platform Outage",
+                "city": worker.city,
+                "measured_value": 20.0,
+                "threshold_value": 15.0,
+                "unit": "minutes down",
+                "source_primary": "Partner outage telemetry",
+                "source_secondary": "Mock outage simulator",
+                "is_validated": False,
+                "severity": "high",
+                "description": "Mock outage signal crossed threshold",
+                "confidence_score": 32.0,
+                "source_log": "Fallback monitoring only",
+                "detected_at": datetime.utcnow().isoformat(),
+                "expires_at": (datetime.utcnow() + timedelta(hours=6)).isoformat(),
+            }
+        ]
+        with patch("routers.triggers.check_all_triggers", return_value=mock_fired), _patch_session_local(test_db):
+            resp = authed_client.get("/triggers/live", params={"city": worker.city, "platform": worker.platform})
+        assert resp.status_code == 200
+
+        claims = test_db.query(Claim).filter(Claim.worker_id == worker.id).all()
+        assert claims == []
+
+    def test_live_check_secondary_source_creates_manual_review_claim(
+        self, authed_client, test_db, make_policy
+    ):
+        worker = authed_client.worker
+        make_policy(worker=worker, status=PolicyStatus.ACTIVE)
+        mock_fired = [
+            {
+                "trigger_type": "Heavy Rainfall",
+                "city": worker.city,
+                "measured_value": 72.5,
+                "threshold_value": 64.5,
+                "unit": "mm/24hr",
+                "source_primary": "IMD district weather feed",
+                "source_secondary": "OpenWeatherMap live continuity feed",
+                "is_validated": False,
+                "severity": "high",
+                "description": "Continuity source crossed rainfall threshold",
+                "confidence_score": 72.0,
+                "source_log": "Secondary continuity source active",
+                "detected_at": datetime.utcnow().isoformat(),
+                "expires_at": (datetime.utcnow() + timedelta(hours=6)).isoformat(),
+            }
+        ]
+        with patch("routers.triggers.check_all_triggers", return_value=mock_fired), _patch_session_local(test_db):
+            resp = authed_client.get("/triggers/live", params={"city": worker.city, "platform": worker.platform})
+        assert resp.status_code == 200
+
+        claim = test_db.query(Claim).filter(Claim.worker_id == worker.id).first()
+        assert claim is not None
+        assert claim.status == ClaimStatus.MANUAL_REVIEW
+        assert claim.paid_at is None

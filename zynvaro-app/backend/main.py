@@ -21,13 +21,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from database import engine, Base
+from database import engine, Base, run_sqlite_startup_migrations
 from routers import auth, policies, triggers, claims, analytics
 
 # ─────────────────────────────────────────────────────────────────
 # CREATE TABLES
 # ─────────────────────────────────────────────────────────────────
 Base.metadata.create_all(bind=engine)
+run_sqlite_startup_migrations()
 
 # ─────────────────────────────────────────────────────────────────
 # APP INIT
@@ -57,12 +58,18 @@ app.add_middleware(
 # ROUTERS
 # ─────────────────────────────────────────────────────────────────
 from routers import webhooks
+from routers import cases as cases_router
+from routers import admin_cases as admin_cases_router
 app.include_router(auth.router)
 app.include_router(policies.router)
 app.include_router(triggers.router)
+# cases_router must be before claims.router — both have /claims/{id}/appeal
+# and FastAPI resolves in registration order
+app.include_router(cases_router.router)
 app.include_router(claims.router)
 app.include_router(analytics.router)
 app.include_router(webhooks.router)
+app.include_router(admin_cases_router.router)
 
 # ─────────────────────────────────────────────────────────────────
 # SERVE FRONTEND (static files)

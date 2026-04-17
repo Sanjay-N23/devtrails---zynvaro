@@ -32,7 +32,49 @@ CITY_COORDINATES = {
 }
 
 RECENT_LOCATION_FRESHNESS_HOURS = 6
+RECENT_ACTIVITY_WINDOW_HOURS = 48
 CITY_INFERENCE_BUFFER_KM = 8
+
+# ─────────────────────────────────────────────────────────────────
+# ACTIVITY REASON CODES  (machine-readable, never change these values)
+# ─────────────────────────────────────────────────────────────────
+RC_STRONG_CONFIRMED         = "RECENT_ACTIVITY_CONFIRMED_STRONG"
+RC_MEDIUM_CONFIRMED         = "RECENT_ACTIVITY_CONFIRMED_MEDIUM"
+RC_SHIFT_CONFIRMED          = "RECENT_ACTIVITY_CONFIRMED_SHIFT_BASED"
+RC_OUTAGE_CONFIRMED         = "OUTAGE_WINDOW_ACTIVITY_CONFIRMED"
+RC_OUTAGE_NOT_FOUND         = "OUTAGE_WINDOW_ACTIVITY_NOT_FOUND"
+RC_ACTIVITY_TOO_OLD         = "ACTIVITY_TOO_OLD"
+RC_NO_ACTIVITY              = "NO_ACTIVITY_FOUND"
+RC_SIGNALS_TOO_WEAK         = "SIGNALS_TOO_WEAK"
+RC_DATA_INCOMPLETE          = "ACTIVITY_DATA_INCOMPLETE"
+RC_LOCATION_MISMATCH        = "LOCATION_MISMATCH"
+RC_DEVICE_MISMATCH          = "DEVICE_MISMATCH"
+
+# ─────────────────────────────────────────────────────────────────
+# SIGNAL TRUST LEVELS
+# ─────────────────────────────────────────────────────────────────
+# Strong = platform heartbeat or GPS ping from the device
+# Medium = authenticated app session
+# Weak   = registration seed only (no real user session)
+STRONG_SOURCES = {"gps_ping"}
+MEDIUM_SOURCES = {"session_ping"}
+WEAK_SOURCES   = {"signup_seed", "manual_declaration", "login_only"}
+
+# ─────────────────────────────────────────────────────────────────
+# TRIGGER-SPECIFIC LOOKBACK WINDOWS  (Section 12)
+# ─────────────────────────────────────────────────────────────────
+ACTIVITY_WINDOW_BY_TRIGGER: dict[str, int] = {
+    "Heavy Rainfall":           24,   # hours
+    "Extreme Rain / Flooding":  24,
+    "Severe Heatwave":          24,
+    "Hazardous AQI":            24,
+    "Civil Disruption":         24,   # shift-overlap check tightens this further
+    "Platform Outage":           2,   # much tighter: outage stops new orders
+    "default":                  48,   # fallback
+}
+
+# Review-threshold: if confidence drops below this, route to REVIEW_REQUIRED
+ACTIVITY_CONFIDENCE_REVIEW_THRESHOLD = 0.55
 
 # ─────────────────────────────────────────────────────────────────
 # PINCODE → GPS MAPPING (30+ pincodes, deterministic from city center)
@@ -154,11 +196,35 @@ def get_worker_location_context(worker, freshness_hours: int = RECENT_LOCATION_F
     """
     now = datetime.utcnow()
     last_location_at = getattr(worker, "last_location_at", None)
-    has_recent_device_gps = bool(
+    last_activity_source = getattr(worker, "last_activity_source", None)
+    freshness_cutoff = now - timedelta(hours=freshness_hours)
+    has_device_gps = bool(
         getattr(worker, "last_known_lat", None) is not None
         and getattr(worker, "last_known_lng", None) is not None
+    )
+    inferred_device_city = None
+    session_backfilled_device_gps = False
+    if has_device_gps:
+        inferred_device_city = infer_city_from_coords(worker.last_known_lat, worker.last_known_lng)
+        home_lat = getattr(worker, "home_lat", None)
+        home_lng = getattr(worker, "home_lng", None)
+        session_backfilled_device_gps = bool(
+            last_activity_source == "session_ping"
+            and last_location_at is not None
+            and last_location_at >= freshness_cutoff
+            and inferred_device_city is not None
+            and (
+                home_lat is None
+                or home_lng is None
+                or abs(float(worker.last_known_lat) - float(home_lat)) > 1e-6
+                or abs(float(worker.last_known_lng) - float(home_lng)) > 1e-6
+            )
+        )
+    is_recent_device_gps = bool(
+        has_device_gps
+        and (last_activity_source in {None, "gps_ping"} or session_backfilled_device_gps)
         and last_location_at is not None
-        and last_location_at >= now - timedelta(hours=freshness_hours)
+        and last_location_at >= freshness_cutoff
     )
 
     def _base_context(source: str, city: Optional[str], lat: Optional[float], lng: Optional[float], inferred: Optional[dict]) -> dict:
@@ -172,18 +238,21 @@ def get_worker_location_context(worker, freshness_hours: int = RECENT_LOCATION_F
             "lng": lng,
             "distance_km": inferred["distance_km"] if inferred else None,
             "match_type": inferred["match_type"] if inferred else None,
-            "location_fresh": has_recent_device_gps,
+            "location_fresh": is_recent_device_gps,
             "location_age_minutes": age_minutes,
             "last_location_at": last_location_at,
+            "last_activity_source": last_activity_source,
         }
 
-    if has_recent_device_gps:
+    if has_device_gps:
         lat = worker.last_known_lat
         lng = worker.last_known_lng
-        inferred = infer_city_from_coords(lat, lng)
+        inferred = inferred_device_city
         if inferred:
-            return _base_context("recent_gps", inferred["city"], lat, lng, inferred)
-        return _base_context("recent_gps_unmatched", getattr(worker, "city", None), lat, lng, None)
+            src = "recent_gps" if is_recent_device_gps else "stale_gps"
+            return _base_context(src, inferred["city"], lat, lng, inferred)
+        src = "recent_gps_unmatched" if is_recent_device_gps else "stale_gps_unmatched"
+        return _base_context(src, getattr(worker, "city", None), lat, lng, None)
 
     home_lat = getattr(worker, "home_lat", None)
     home_lng = getattr(worker, "home_lng", None)
@@ -194,6 +263,126 @@ def get_worker_location_context(worker, freshness_hours: int = RECENT_LOCATION_F
         return _base_context("home_gps_unmatched", getattr(worker, "city", None), home_lat, home_lng, None)
 
     return _base_context("registered_city", getattr(worker, "city", None), None, None, None)
+
+
+def get_recent_activity_snapshot(
+    worker,
+    as_of: Optional[datetime] = None,
+    window_hours: int | None = None,
+    trigger_type: str | None = None,
+) -> dict:
+    """
+    Determine whether the worker has recent, user-originated activity.
+
+    Returns an eligibility dict with keys:
+      eligible       : bool
+      eligibility_state : ELIGIBLE | INELIGIBLE | REVIEW_REQUIRED | UNKNOWN_ACTIVITY
+      reason_code    : machine-readable reason code (RC_* constant)
+      activity_at    : datetime | None
+      activity_age_hours : float | None
+      activity_source : str | None
+      confidence     : float  0.0 – 1.0
+      reason         : human-readable string
+
+    `signup_seed` does not count as activity because it is derived from the
+    registration pincode rather than a live user session or GPS ping.
+    """
+    reference_time = as_of or datetime.utcnow()
+
+    # Choose lookback window: caller override > trigger-specific > default
+    effective_window = (
+        window_hours if window_hours is not None
+        else ACTIVITY_WINDOW_BY_TRIGGER.get(trigger_type or "", RECENT_ACTIVITY_WINDOW_HOURS)
+    )
+
+    last_activity_at = getattr(worker, "last_location_at", None)
+    activity_source = getattr(worker, "last_activity_source", None)
+
+    # ── No timestamp at all ──────────────────────────────────────────
+    if last_activity_at is None:
+        return {
+            "eligible": False,
+            "eligibility_state": "UNKNOWN_ACTIVITY",
+            "reason_code": RC_NO_ACTIVITY,
+            "activity_at": None,
+            "activity_age_hours": None,
+            "activity_source": activity_source,
+            "confidence": 0.0,
+            "reason": f"No recent app activity was captured in the last {effective_window} hours.",
+        }
+
+    age_hours = round(max(0.0, (reference_time - last_activity_at).total_seconds() / 3600), 2)
+
+    # ── Activity window exceeded ─────────────────────────────────────
+    if last_activity_at < reference_time - timedelta(hours=effective_window):
+        reason_code = RC_OUTAGE_NOT_FOUND if trigger_type == "Platform Outage" else RC_ACTIVITY_TOO_OLD
+        return {
+            "eligible": False,
+            "eligibility_state": "INELIGIBLE",
+            "reason_code": reason_code,
+            "activity_at": last_activity_at,
+            "activity_age_hours": age_hours,
+            "activity_source": activity_source,
+            "confidence": 0.0,
+            "reason": f"Last user activity is {age_hours} hours old, beyond the {effective_window}-hour payout eligibility window.",
+        }
+
+    # ── Determine signal tier and confidence ────────────────────────
+    if activity_source in STRONG_SOURCES:
+        base_confidence = 1.0
+        reason_code = RC_OUTAGE_CONFIRMED if trigger_type == "Platform Outage" else RC_STRONG_CONFIRMED
+        state = "ELIGIBLE"
+        eligible = True
+        tier_label = "gps ping"
+    elif activity_source in MEDIUM_SOURCES:
+        base_confidence = 0.7
+        reason_code = RC_MEDIUM_CONFIRMED
+        state = "ELIGIBLE"
+        eligible = True
+        tier_label = "app session"
+    elif activity_source in WEAK_SOURCES or activity_source is None:
+        # Weak — route to REVIEW, do not auto-approve
+        base_confidence = 0.4
+        reason_code = RC_SIGNALS_TOO_WEAK
+        state = "REVIEW_REQUIRED"
+        eligible = False
+        tier_label = "signup/manual signal"
+    else:
+        # Unknown source — treat as incomplete
+        base_confidence = 0.3
+        reason_code = RC_DATA_INCOMPLETE
+        state = "REVIEW_REQUIRED"
+        eligible = False
+        tier_label = "unknown signal"
+
+    # Staleness penalty
+    staleness_ratio = age_hours / max(effective_window, 1)
+    staleness_penalty = round(staleness_ratio * 0.3, 2)   # up to -0.3 as activity ages
+    confidence = max(0.0, round(base_confidence - staleness_penalty, 3))
+
+    # Down-grade to REVIEW_REQUIRED if confidence slips below threshold
+    if eligible and confidence < ACTIVITY_CONFIDENCE_REVIEW_THRESHOLD:
+        state = "REVIEW_REQUIRED"
+        eligible = False
+        reason_code = RC_SIGNALS_TOO_WEAK
+
+    human_text = {
+        "ELIGIBLE":         f"Recent {tier_label} recorded {age_hours}h before payout review.",
+        "REVIEW_REQUIRED":  f"Activity signal is present but confidence ({confidence:.2f}) is below threshold — payout requires review.",
+        "INELIGIBLE":       f"Last user activity is {age_hours}h old, beyond the {effective_window}-h window.",
+        "UNKNOWN_ACTIVITY": f"No recent app activity found in the last {effective_window}h.",
+    }
+
+    return {
+        "eligible": eligible,
+        "eligibility_state": state,
+        "reason_code": reason_code,
+        "activity_at": last_activity_at,
+        "activity_age_hours": age_hours,
+        "activity_source": activity_source,
+        "confidence": confidence,
+        "reason": human_text[state],
+    }
 
 
 # ─────────────────────────────────────────────────────────────────

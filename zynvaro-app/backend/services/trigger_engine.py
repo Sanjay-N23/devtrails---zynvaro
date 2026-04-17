@@ -69,6 +69,169 @@ TRIGGERS = {
     },
 }
 
+SOURCE_HIERARCHY = {
+    "weather": {
+        "primary_label": "IMD district weather feed",
+        "secondary_label": "OpenWeatherMap live continuity feed",
+        "fallback_label": "Historical/mock weather",
+        "secondary_confidence": 72.0,
+        "fallback_confidence": 38.0,
+        "secondary_status": "Secondary continuity source active - trigger may be detected, payout review required",
+        "fallback_status": "Fallback monitoring only - no claim automation",
+    },
+    "aqi": {
+        "primary_label": "CPCB / SAMEER station feed",
+        "secondary_label": "WAQI live continuity feed",
+        "fallback_label": "Interpolated/mock AQI",
+        "secondary_confidence": 74.0,
+        "fallback_confidence": 42.0,
+        "secondary_status": "Secondary continuity source active - trigger may be detected, payout review required",
+        "fallback_status": "Fallback monitoring only - no claim automation",
+    },
+    "platform": {
+        "primary_label": "Partner outage telemetry",
+        "secondary_label": "Synthetic reachability probe",
+        "fallback_label": "Mock outage simulator",
+        "secondary_confidence": 66.0,
+        "fallback_confidence": 32.0,
+        "secondary_status": "Synthetic continuity signal active - manual review required before payout",
+        "fallback_status": "Fallback monitoring only - no claim automation",
+    },
+    "civil": {
+        "primary_label": "Official district order / mobility restriction feed",
+        "secondary_label": "GDELT news corroborator",
+        "fallback_label": "Mock disruption simulator",
+        "secondary_confidence": 58.0,
+        "fallback_confidence": 28.0,
+        "secondary_status": "News corroborator active - manual review required before payout",
+        "fallback_status": "Fallback monitoring only - no claim automation",
+    },
+}
+
+
+def _build_source_meta(domain: str, live_available: bool, used_label: Optional[str] = None) -> dict:
+    cfg = SOURCE_HIERARCHY[domain]
+    if live_available:
+        source_used = used_label or cfg["secondary_label"]
+        log = [
+            f"Primary: {cfg['primary_label']} [UNAVAILABLE]",
+            f"Secondary: {source_used} [SUCCESS]",
+            "Decision: Secondary continuity source active",
+            "Settlement: Manual review required until primary/official corroboration is available",
+        ]
+        return {
+            "source_primary": cfg["primary_label"],
+            "source_secondary": source_used,
+            "source_used": source_used,
+            "source_tier": "secondary",
+            "confidence_score": cfg["secondary_confidence"],
+            "is_validated": False,
+            "claim_allowed": True,
+            "requires_manual_review": True,
+            "status": cfg["secondary_status"],
+            "source_log_lines": log,
+        }
+
+    fallback_label = cfg["fallback_label"]
+    log = [
+        f"Primary: {cfg['primary_label']} [UNAVAILABLE]",
+        f"Secondary: {cfg['secondary_label']} [FAILED OR NOT CONFIGURED]",
+        f"Fallback: {fallback_label} [USED]",
+        "Decision: Fallback monitoring only",
+        "Settlement: Block auto-claim generation until a stronger source is available",
+    ]
+    return {
+        "source_primary": cfg["primary_label"],
+        "source_secondary": fallback_label,
+        "source_used": fallback_label,
+        "source_tier": "fallback",
+        "confidence_score": cfg["fallback_confidence"],
+        "is_validated": False,
+        "claim_allowed": False,
+        "requires_manual_review": True,
+        "status": cfg["fallback_status"],
+        "source_log_lines": log,
+    }
+
+
+async def get_live_signal_snapshot(city: str, platform: str = "Blinkit") -> dict:
+    """
+    Collect live trigger inputs and annotate them with source hierarchy metadata.
+
+    The current prototype does not yet have official IMD/CPCB/partner telemetry
+    integrations, so successful live fetches are treated as secondary continuity
+    sources. Mock data remains visible for monitoring UX but is not claim-grade.
+    """
+    weather_result, aqi_result, platform_result, disruption_result = await asyncio.gather(
+        fetch_real_weather(city),
+        fetch_real_aqi(city),
+        fetch_real_platform_status(platform),
+        fetch_civil_disruption_live(city),
+        return_exceptions=True,
+    )
+
+    live_weather = weather_result if not isinstance(weather_result, Exception) else None
+    live_aqi = aqi_result if not isinstance(aqi_result, Exception) else None
+    live_platform = platform_result if not isinstance(platform_result, Exception) else None
+    live_disruption = disruption_result if not isinstance(disruption_result, Exception) else None
+
+    weather_meta = _build_source_meta(
+        "weather",
+        live_weather is not None,
+        used_label=live_weather.get("source") if live_weather else None,
+    )
+    weather_data = live_weather if live_weather is not None else mock_weather(city, "normal")
+    if live_weather is None:
+        weather_data = {
+            **weather_data,
+            "source": SOURCE_HIERARCHY["weather"]["fallback_label"],
+        }
+
+    aqi_meta = _build_source_meta(
+        "aqi",
+        live_aqi is not None,
+        used_label="WAQI live continuity feed" if live_aqi is not None else None,
+    )
+    aqi_value = live_aqi if live_aqi is not None else mock_aqi(city)
+
+    platform_meta = _build_source_meta(
+        "platform",
+        live_platform is not None,
+        used_label=live_platform.get("source") if live_platform else "Synthetic reachability probe",
+    )
+    platform_data = live_platform if live_platform is not None else mock_platform_status(platform)
+    if live_platform is None:
+        platform_data = {
+            **platform_data,
+            "source": SOURCE_HIERARCHY["platform"]["fallback_label"],
+        }
+
+    civil_meta = _build_source_meta(
+        "civil",
+        live_disruption is not None,
+        used_label=live_disruption.get("source") if live_disruption else "GDELT news corroborator",
+    )
+    civil_data = live_disruption if live_disruption is not None else mock_civil_disruption(city)
+    if live_disruption is None:
+        civil_data = {
+            **civil_data,
+            "source": SOURCE_HIERARCHY["civil"]["fallback_label"],
+        }
+
+    return {
+        "weather": {"data": weather_data, "meta": weather_meta},
+        "aqi": {"data": aqi_value, "meta": aqi_meta},
+        "platform": {"data": platform_data, "meta": platform_meta},
+        "civil": {"data": civil_data, "meta": civil_meta},
+    }
+
+
+def summarize_source_status(snapshot: dict) -> dict:
+    return {
+        domain: snapshot[domain]["meta"]["status"]
+        for domain in ("weather", "aqi", "platform", "civil")
+    }
+
 # ─────────────────────────────────────────────────────────────────
 # REAL WEATHER FETCH (OpenWeatherMap)
 # ─────────────────────────────────────────────────────────────────
@@ -291,69 +454,96 @@ def mock_civil_disruption(city: str) -> dict:
 # ─────────────────────────────────────────────────────────────────
 # TRIGGER EVALUATION
 # ─────────────────────────────────────────────────────────────────
-async def check_all_triggers(city: str, platform: str = "Blinkit") -> list[dict]:
+async def check_all_triggers(city: str, platform: str = "Blinkit", snapshot: Optional[dict] = None) -> list[dict]:
     """
     Check all 5 triggers for a city.
     Returns list of fired triggers (empty if none).
     """
     fired = []
-
-    # ── Fetch all 4 live data sources concurrently (H13: was sequential ~28s worst case) ──
-    weather_result, aqi_result, platform_result, disruption_result = await asyncio.gather(
-        fetch_real_weather(city),
-        fetch_real_aqi(city),
-        fetch_real_platform_status(platform),
-        fetch_civil_disruption_live(city),
-        return_exceptions=True,
-    )
-    # Treat exceptions as None (fallback to mock)
-    live_weather = weather_result if not isinstance(weather_result, Exception) else None
-    live_aqi = aqi_result if not isinstance(aqi_result, Exception) else None
-    live_platform = platform_result if not isinstance(platform_result, Exception) else None
-    live_disruption = disruption_result if not isinstance(disruption_result, Exception) else None
-
-    if live_weather is None:
-        # Fallback to mock — use "normal" unless demo mode
-        live_weather = mock_weather(city, "normal")
+    snapshot = snapshot or await get_live_signal_snapshot(city, platform)
+    live_weather = snapshot["weather"]["data"]
+    weather_meta = snapshot["weather"]["meta"]
+    live_aqi = snapshot["aqi"]["data"]
+    aqi_meta = snapshot["aqi"]["meta"]
+    live_platform = snapshot["platform"]["data"]
+    plat_meta = snapshot["platform"]["meta"]
+    live_disruption = snapshot["civil"]["data"]
+    disrupt_meta = snapshot["civil"]["meta"]
 
     # ── TRIGGER 1: Heavy Rainfall
     rain_24h = live_weather.get("rain_24h_mm", 0)
     if rain_24h >= TRIGGERS["Heavy Rainfall"]["threshold"]:
-        fired.append(_make_trigger("Heavy Rainfall", city, rain_24h, "high"))
+        fired.append(_make_trigger(
+            "Heavy Rainfall", city, rain_24h, "high",
+            conf=weather_meta["confidence_score"],
+            log=weather_meta["source_log_lines"],
+            validated=weather_meta["is_validated"],
+            source_primary=weather_meta["source_primary"],
+            source_secondary=weather_meta["source_secondary"],
+        ))
     elif rain_24h >= 20:
         # Near-miss — useful for showing the system is monitoring
         pass
 
     # ── TRIGGER 2: Extreme Rain / Flooding
     if rain_24h >= TRIGGERS["Extreme Rain / Flooding"]["threshold"]:
-        fired.append(_make_trigger("Extreme Rain / Flooding", city, rain_24h, "extreme"))
+        fired.append(_make_trigger(
+            "Extreme Rain / Flooding", city, rain_24h, "extreme",
+            conf=weather_meta["confidence_score"],
+            log=weather_meta["source_log_lines"],
+            validated=weather_meta["is_validated"],
+            source_primary=weather_meta["source_primary"],
+            source_secondary=weather_meta["source_secondary"],
+        ))
 
     # ── TRIGGER 3: Severe Heatwave
     temp = live_weather.get("temp", 30)
     if temp >= TRIGGERS["Severe Heatwave"]["threshold"]:
-        fired.append(_make_trigger("Severe Heatwave", city, temp, "high"))
+        fired.append(_make_trigger(
+            "Severe Heatwave", city, temp, "high",
+            conf=weather_meta["confidence_score"],
+            log=weather_meta["source_log_lines"],
+            validated=weather_meta["is_validated"],
+            source_primary=weather_meta["source_primary"],
+            source_secondary=weather_meta["source_secondary"],
+        ))
 
     # ── TRIGGER 4: Hazardous AQI — live WAQI, fallback to mock
-    aqi = live_aqi if live_aqi is not None else mock_aqi(city)
-    aqi_source = "WAQI API (live)" if live_aqi is not None else "Mock (no WAQI token)"
+    aqi = live_aqi
+    aqi_source = aqi_meta["source_used"]
     if aqi >= TRIGGERS["Hazardous AQI"]["threshold"]:
         fired.append(_make_trigger("Hazardous AQI", city, aqi, "high",
-                                   desc=f"AQI {aqi:.0f} in {city} exceeds hazardous threshold ({TRIGGERS['Hazardous AQI']['threshold']}) — source: {aqi_source}"))
+                                   desc=f"AQI {aqi:.0f} in {city} exceeds hazardous threshold ({TRIGGERS['Hazardous AQI']['threshold']}) — source: {aqi_source}",
+                                   conf=aqi_meta["confidence_score"],
+                                   log=aqi_meta["source_log_lines"],
+                                   validated=aqi_meta["is_validated"],
+                                   source_primary=aqi_meta["source_primary"],
+                                   source_secondary=aqi_meta["source_secondary"]))
 
     # ── TRIGGER 5: Platform Outage — live HTTP HEAD probe, fallback to mock
-    platform_status = live_platform if live_platform is not None else mock_platform_status(platform)
+    platform_status = live_platform
     if platform_status["status"] == "DOWN":
         latency = platform_status.get("latency_ms", 9999)
-        src = platform_status.get("source", "probe")
+        src = plat_meta["source_used"]
         fired.append(_make_trigger("Platform Outage", city, latency / 1000, "high",
-                                   desc=f"{platform} unreachable — {latency}ms response ({src})"))
+                                   desc=f"{platform} unreachable — {latency}ms response ({src})",
+                                   conf=plat_meta["confidence_score"],
+                                   log=plat_meta["source_log_lines"],
+                                   validated=plat_meta["is_validated"],
+                                   source_primary=plat_meta["source_primary"],
+                                   source_secondary=plat_meta["source_secondary"]))
 
     # ── TRIGGER 6: Civil Disruption — live GDELT, fallback to mock
-    disruption = live_disruption if live_disruption is not None else mock_civil_disruption(city)
+    disruption = live_disruption
     if disruption["active_restrictions"] and disruption["duration_hours"] >= TRIGGERS["Civil Disruption"]["threshold"]:
-        articles_note = f" ({disruption.get('article_count', '')} GDELT articles)" if live_disruption else ""
+        articles_note = f" ({disruption.get('article_count', '')} GDELT articles)" if disruption.get("article_count") else ""
         fired.append(_make_trigger("Civil Disruption", city, disruption["duration_hours"], "high",
-                                   desc=f"{disruption.get('type', 'Disruption')} in {city}: movement restricted for {disruption['duration_hours']:.1f}h{articles_note}"))
+                                   desc=f"{disruption.get('type', 'Disruption')} in {city}: movement restricted for {disruption['duration_hours']:.1f}h{articles_note}",
+                                   conf=disrupt_meta["confidence_score"],
+                                   log=disrupt_meta["source_log_lines"],
+                                   validated=disrupt_meta["is_validated"],
+                                   source_primary=disrupt_meta["source_primary"],
+                                   source_secondary=disrupt_meta["source_secondary"]))
 
     return fired
 
@@ -372,27 +562,39 @@ def simulate_trigger(trigger_type: str, city: str) -> dict:
         "Civil Disruption":        6.0,
     }
     value = demo_values.get(trigger_type, 100.0)
+    
+    # Explainability logic for simulated bypass
+    conf = 100.0
+    log = ["Primary: Zynvaro Simulation Engine [OVERRIDE]"]
+    
     return _make_trigger(trigger_type, city, value, "high",
-                         desc=f"Simulated {trigger_type} in {city} — parametric trigger fired")
+                         desc=f"Simulated {trigger_type} in {city} — parametric trigger fired", conf=conf, log=log)
 
 
 def _make_trigger(trigger_type: str, city: str, value: float,
-                  severity: str, desc: str = None) -> dict:
+                  severity: str, desc: str = None, conf: float = 100.0, log: list = None,
+                  validated: bool = True, source_primary: Optional[str] = None,
+                  source_secondary: Optional[str] = None) -> dict:
     cfg = TRIGGERS.get(trigger_type, {})
     threshold = cfg.get("threshold", 0)
+    
+    source_log_str = "\n".join(log) if log else "Primary: Direct Measurement"
+    
     return {
         "trigger_type": trigger_type,
         "city": city,
         "measured_value": round(value, 2),
         "threshold_value": threshold,
         "unit": cfg.get("unit", ""),
-        "source_primary": cfg.get("source_primary", "API"),
-        "source_secondary": cfg.get("source_secondary", "Mock"),
-        "is_validated": True,  # Dual-source validation placeholder — both sources checked but secondary is simulated
+        "source_primary": source_primary or cfg.get("source_primary", "API"),
+        "source_secondary": source_secondary or cfg.get("source_secondary", "Mock"),
+        "is_validated": validated,
         "severity": severity,
         "description": desc or f"{trigger_type} threshold exceeded in {city}: {value:.1f} {cfg.get('unit','')} (threshold: {threshold})",
         "detected_at": datetime.utcnow().isoformat(),
         "expires_at": (datetime.utcnow() + timedelta(hours=6)).isoformat(),
+        "confidence_score": conf,
+        "source_log": source_log_str,
     }
 
 # ─────────────────────────────────────────────────────────────────

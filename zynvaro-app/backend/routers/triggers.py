@@ -10,9 +10,11 @@ from database import get_db
 from models import TriggerEvent, Worker, Policy, Claim, PolicyStatus, ClaimStatus
 from routers.auth import get_current_worker
 from services.trigger_engine import (
-    check_all_triggers, simulate_trigger, compute_authenticity_score, TRIGGERS
+    check_all_triggers, simulate_trigger, compute_authenticity_score, TRIGGERS,
+    get_live_signal_snapshot, summarize_source_status
 )
 from ml.premium_engine import get_payout_amount
+from services.cooling_off import evaluate_cooling_off
 
 router = APIRouter(prefix="/triggers", tags=["Parametric Triggers"])
 
@@ -34,6 +36,8 @@ class TriggerEventResponse(BaseModel):
     description: Optional[str]
     detected_at: datetime
     expires_at: Optional[datetime]
+    confidence_score: float = 100.0
+    source_log: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -50,6 +54,7 @@ class LiveCheckResponse(BaseModel):
     triggers_fired: int
     events: list
     source_status: Dict[str, str]
+    source_hierarchy: Optional[Dict[str, Dict]] = None
     monitoring_note: str
 
 class SimulateResponse(BaseModel):
@@ -59,6 +64,8 @@ class SimulateResponse(BaseModel):
     unit: str
     description: str
     is_simulated: bool = True
+    confidence_score: float = 100.0
+    source_log: Optional[str] = None
     current_reading: Optional[Dict] = None
     requester_eligible: bool = True
     requester_effective_city: Optional[str] = None
@@ -66,33 +73,83 @@ class SimulateResponse(BaseModel):
     requester_eligibility_reason: Optional[str] = None
 
 
-def _build_live_source_status() -> Dict[str, str]:
-    from services.trigger_engine import OPENWEATHER_API_KEY, WAQI_API_TOKEN
+def _build_live_source_status(snapshot: dict) -> Dict[str, str]:
+    return summarize_source_status(snapshot)
 
+
+def _build_live_source_hierarchy(snapshot: dict) -> Dict[str, Dict]:
+    result = {}
+    for domain, payload in snapshot.items():
+        meta = payload["meta"]
+        result[domain] = {
+            "source_tier": meta["source_tier"],
+            "source_used": meta["source_used"],
+            "confidence_score": meta["confidence_score"],
+            "claim_allowed": meta["claim_allowed"],
+            "requires_manual_review": meta["requires_manual_review"],
+            "status": meta["status"],
+        }
+    return result
+
+
+def _event_settlement_policy(event: TriggerEvent) -> dict:
+    if getattr(event, "is_simulated", False):
+        return {
+            "claim_allowed": True,
+            "force_manual_review": False,
+            "reason": "Simulated events are allowed to run the full demo pipeline.",
+        }
+
+    confidence = float(getattr(event, "confidence_score", 0.0) or 0.0)
+    if confidence < 55:
+        return {
+            "claim_allowed": False,
+            "force_manual_review": True,
+            "reason": "Fallback-only monitoring signal; claim automation blocked until stronger sources are available.",
+        }
+    if not getattr(event, "is_validated", False) or confidence < 80:
+        return {
+            "claim_allowed": True,
+            "force_manual_review": True,
+            "reason": "Trigger detected from a continuity source; manual review required before payout.",
+        }
     return {
-        "weather": (
-            "OpenWeatherMap configured"
-            if OPENWEATHER_API_KEY
-            else "Mock fallback (OPENWEATHER_API_KEY missing in backend/.env)"
-        ),
-        "aqi": (
-            "WAQI configured"
-            if WAQI_API_TOKEN
-            else "Mock fallback (WAQI_API_TOKEN missing in backend/.env)"
-        ),
-        "platform": "Live HTTP reachability probe",
-        "civil": "Live GDELT news scan",
+        "claim_allowed": True,
+        "force_manual_review": False,
+        "reason": "Trigger has strong enough source validation for normal automation.",
     }
 
 
 def _worker_trigger_eligibility(worker: Worker, trigger_city: str, trigger_type: str, platform: Optional[str] = None) -> dict:
-    from services.fraud_engine import get_worker_location_context, validate_gps_zone
+    from services.fraud_engine import (
+        get_recent_activity_snapshot,
+        get_worker_location_context,
+        validate_gps_zone,
+    )
 
     location = get_worker_location_context(worker)
+    recent_activity = get_recent_activity_snapshot(worker, trigger_type=trigger_type)
     effective_city = location.get("effective_city") or worker.city
     source = location.get("source") or "registered_city"
     lat = location.get("lat")
     lng = location.get("lng")
+
+    if not recent_activity["eligible"]:
+        return {
+            "eligible": False,
+            "effective_city": effective_city,
+            "location_source": source,
+            "claim_lat": lat,
+            "claim_lng": lng,
+            "recent_activity_valid": False,
+            "recent_activity_at": recent_activity.get("activity_at"),
+            "recent_activity_age_hours": recent_activity.get("activity_age_hours"),
+            "recent_activity_reason": recent_activity.get("reason"),
+            "recent_activity_state": recent_activity.get("eligibility_state"),
+            "recent_activity_code": recent_activity.get("reason_code"),
+            "recent_activity_confidence": recent_activity.get("confidence"),
+            "reason": f"Eligibility Failed: {recent_activity.get('reason')}",
+        }
 
     if trigger_type == "Platform Outage" and platform:
         if (worker.platform or "").lower() != platform.lower():
@@ -102,6 +159,10 @@ def _worker_trigger_eligibility(worker: Worker, trigger_city: str, trigger_type:
                 "location_source": source,
                 "claim_lat": lat,
                 "claim_lng": lng,
+                "recent_activity_valid": True,
+                "recent_activity_at": recent_activity.get("activity_at"),
+                "recent_activity_age_hours": recent_activity.get("activity_age_hours"),
+                "recent_activity_reason": recent_activity.get("reason"),
                 "reason": f"Worker platform '{worker.platform}' does not match monitored platform '{platform}'.",
             }
 
@@ -112,6 +173,10 @@ def _worker_trigger_eligibility(worker: Worker, trigger_city: str, trigger_type:
             "location_source": source,
             "claim_lat": lat,
             "claim_lng": lng,
+            "recent_activity_valid": True,
+            "recent_activity_at": recent_activity.get("activity_at"),
+            "recent_activity_age_hours": recent_activity.get("activity_age_hours"),
+            "recent_activity_reason": recent_activity.get("reason"),
             "reason": "Recent device GPS does not map to a supported trigger city, so the event cannot auto-generate a claim.",
         }
 
@@ -124,6 +189,10 @@ def _worker_trigger_eligibility(worker: Worker, trigger_city: str, trigger_type:
                 "location_source": source,
                 "claim_lat": lat,
                 "claim_lng": lng,
+                "recent_activity_valid": True,
+                "recent_activity_at": recent_activity.get("activity_at"),
+                "recent_activity_age_hours": recent_activity.get("activity_age_hours"),
+                "recent_activity_reason": recent_activity.get("reason"),
                 "reason": (
                     f"Latest worker location is {zone['distance_km']}km away from the {trigger_city} trigger zone "
                     f"(max {zone['max_radius_km']}km)."
@@ -137,6 +206,10 @@ def _worker_trigger_eligibility(worker: Worker, trigger_city: str, trigger_type:
             "location_source": source,
             "claim_lat": lat,
             "claim_lng": lng,
+            "recent_activity_valid": True,
+            "recent_activity_at": recent_activity.get("activity_at"),
+            "recent_activity_age_hours": recent_activity.get("activity_age_hours"),
+            "recent_activity_reason": recent_activity.get("reason"),
             "reason": f"Worker is resolved to {effective_city or 'an unknown city'}, not {trigger_city}.",
         }
 
@@ -146,6 +219,10 @@ def _worker_trigger_eligibility(worker: Worker, trigger_city: str, trigger_type:
         "location_source": source,
         "claim_lat": lat,
         "claim_lng": lng,
+        "recent_activity_valid": True,
+        "recent_activity_at": recent_activity.get("activity_at"),
+        "recent_activity_age_hours": recent_activity.get("activity_age_hours"),
+        "recent_activity_reason": recent_activity.get("reason"),
         "reason": f"Worker location matches {trigger_city} via {source}.",
     }
 
@@ -179,9 +256,16 @@ async def live_check(
     Requires auth — this endpoint has side effects (claim generation).
     """
     try:
-        fired = await check_all_triggers(city, platform)
+        snapshot = await get_live_signal_snapshot(city, platform)
+        fired = await check_all_triggers(city, platform, snapshot=snapshot)
     except Exception as e:
         print(f"[LiveCheck] check_all_triggers failed for {city}: {e}")
+        snapshot = {
+            "weather": {"meta": {"status": "Live check unavailable", "source_tier": "fallback", "source_used": "Unavailable", "confidence_score": 0.0, "claim_allowed": False, "requires_manual_review": True}},
+            "aqi": {"meta": {"status": "Live check unavailable", "source_tier": "fallback", "source_used": "Unavailable", "confidence_score": 0.0, "claim_allowed": False, "requires_manual_review": True}},
+            "platform": {"meta": {"status": "Live check unavailable", "source_tier": "fallback", "source_used": "Unavailable", "confidence_score": 0.0, "claim_allowed": False, "requires_manual_review": True}},
+            "civil": {"meta": {"status": "Live check unavailable", "source_tier": "fallback", "source_used": "Unavailable", "confidence_score": 0.0, "claim_allowed": False, "requires_manual_review": True}},
+        }
         fired = []  # Graceful degradation — show empty rather than crash
 
     saved_events = []
@@ -216,6 +300,8 @@ async def live_check(
             is_validated=t["is_validated"],
             severity=t["severity"],
             description=t["description"],
+            confidence_score=t.get("confidence_score", 100.0),
+            source_log=t.get("source_log"),
             detected_at=datetime.fromisoformat(t["detected_at"]),
             expires_at=datetime.fromisoformat(t["expires_at"]),
             trigger_lat=_city_geo["lat"] if _city_geo else None,
@@ -236,6 +322,8 @@ async def live_check(
             "is_validated": event.is_validated,
             "severity": event.severity,
             "description": event.description,
+            "confidence_score": event.confidence_score,
+            "source_log": event.source_log,
             "detected_at": event.detected_at.isoformat(),
             "expires_at": event.expires_at.isoformat() if event.expires_at else None,
         })
@@ -251,10 +339,11 @@ async def live_check(
         checked_at=datetime.utcnow().isoformat(),
         triggers_fired=len(fired),
         events=saved_events,
-        source_status=_build_live_source_status(),
+        source_status=_build_live_source_status(snapshot),
+        source_hierarchy=_build_live_source_hierarchy(snapshot),
         monitoring_note=(
             "Live check runs for your selected city and platform. "
-            "Recent Events shows saved trigger history, not raw weather readings."
+            "Secondary continuity sources can detect events, but fallback-only signals do not auto-generate claim payouts."
         ),
     )
 
@@ -290,12 +379,6 @@ async def simulate_trigger_event(
         platform=current_worker.platform,
     )
     
-    if not requester_gate["eligible"] and not req.bypass_gate:
-        raise HTTPException(
-            status_code=403,
-            detail=f"{requester_gate['reason']}|bypass_required"
-        )
-        
     t = simulate_trigger(req.trigger_type, req.city)
 
     # Fetch current real reading for comparison (what-if framing)
@@ -348,6 +431,8 @@ async def simulate_trigger_event(
         is_simulated=True,
         severity=t["severity"],
         description=t["description"],
+        confidence_score=t.get("confidence_score", 100.0),
+        source_log=t.get("source_log"),
         detected_at=datetime.utcnow(),
         expires_at=datetime.utcnow() + timedelta(hours=6),
         trigger_lat=_sim_geo["lat"] if _sim_geo else None,
@@ -365,6 +450,7 @@ async def simulate_trigger_event(
         req.trigger_type,
         db,
         is_simulated=True,
+        bypass_gate=req.bypass_gate,   # honour demo bypass flag
         platform=current_worker.platform,
     )
 
@@ -375,6 +461,8 @@ async def simulate_trigger_event(
         "unit": t["unit"],
         "description": t["description"],
         "is_simulated": True,
+        "confidence_score": t.get("confidence_score", 100.0),
+        "source_log": t.get("source_log"),
         "current_reading": current_reading,
         "requester_eligible": requester_gate["eligible"],
         "requester_effective_city": requester_gate["effective_city"],
@@ -395,56 +483,17 @@ async def get_live_conditions(
     can display real-time conditions regardless of threshold exceedance.
     """
     from services.trigger_engine import (
-        fetch_real_weather, fetch_real_aqi, fetch_real_platform_status,
-        fetch_civil_disruption_live, mock_weather, mock_aqi,
-        mock_platform_status, mock_civil_disruption,
-        OPENWEATHER_API_KEY, WAQI_API_TOKEN, CITY_COORDS, TRIGGERS,
+        CITY_COORDS, TRIGGERS,
     )
-
-    # --- Weather (OpenWeatherMap) ---
-    weather_data = None
-    weather_source = "mock"
-    if OPENWEATHER_API_KEY:
-        weather_data = await fetch_real_weather(city)
-    if weather_data:
-        weather_source = "OpenWeatherMap (live)"
-    else:
-        mock = mock_weather(city)
-        weather_data = {
-            "temp": mock["temp"],
-            "rain_1h_mm": 0,
-            "rain_3h_mm": 0,
-            "rain_24h_mm": mock["rain_24h_mm"],
-            "description": "mock data",
-            "source": "Mock fallback",
-        }
-
-    # --- AQI (WAQI) ---
-    aqi_value = None
-    aqi_source = "mock"
-    if WAQI_API_TOKEN:
-        aqi_value = await fetch_real_aqi(city)
-    if aqi_value is not None:
-        aqi_source = "WAQI (live)"
-    else:
-        aqi_value = mock_aqi(city)
-        aqi_source = "Mock fallback"
-
-    # --- Platform status ---
-    platform_data = await fetch_real_platform_status(platform)
-    if platform_data:
-        platform_source = platform_data.get("source", "HTTP probe (live)")
-    else:
-        platform_data = mock_platform_status(platform)
-        platform_source = "Mock fallback"
-
-    # --- Civil disruption (GDELT) ---
-    civil_data = await fetch_civil_disruption_live(city)
-    if civil_data:
-        civil_source = civil_data.get("source", "GDELT (live)")
-    else:
-        civil_data = mock_civil_disruption(city)
-        civil_source = "Mock fallback"
+    snapshot = await get_live_signal_snapshot(city, platform)
+    weather_data = snapshot["weather"]["data"]
+    weather_meta = snapshot["weather"]["meta"]
+    aqi_value = snapshot["aqi"]["data"]
+    aqi_meta = snapshot["aqi"]["meta"]
+    platform_data = snapshot["platform"]["data"]
+    platform_meta = snapshot["platform"]["meta"]
+    civil_data = snapshot["civil"]["data"]
+    civil_meta = snapshot["civil"]["meta"]
 
     # --- AQI category label ---
     def aqi_category(val):
@@ -475,32 +524,33 @@ async def get_live_conditions(
             "rain_24h_est_mm": round(weather_data.get("rain_24h_mm", 0), 1),
             "rain_threshold_mm": rain_threshold,
             "heat_threshold_c": heat_threshold,
-            "source": weather_source,
+            "source": weather_meta["source_used"],
         },
         "aqi": {
             "value": round(aqi_value, 0),
             "category": aqi_category(aqi_value),
             "threshold": aqi_threshold,
-            "source": aqi_source,
+            "source": aqi_meta["source_used"],
         },
         "platform_status": {
             "name": platform_data.get("platform", platform),
             "status": platform_data.get("status", "UNKNOWN"),
             "latency_ms": platform_data.get("latency_ms", 0),
-            "source": platform_source,
+            "source": platform_meta["source_used"],
         },
         "civil_disruption": {
             "active": civil_data.get("active_restrictions", False),
             "type": civil_data.get("type"),
             "article_count": civil_data.get("article_count", 0),
-            "source": civil_source,
+            "source": civil_meta["source_used"],
         },
         "sources": {
-            "weather": weather_source,
-            "aqi": aqi_source,
-            "platform": platform_source,
-            "civil": civil_source,
+            "weather": weather_meta["source_used"],
+            "aqi": aqi_meta["source_used"],
+            "platform": platform_meta["source_used"],
+            "civil": civil_meta["source_used"],
         },
+        "source_hierarchy": _build_live_source_hierarchy(snapshot),
     }
 
 
@@ -525,6 +575,7 @@ def _auto_generate_claims(
     trigger_type: str,
     db: Session,
     is_simulated: bool = False,
+    bypass_gate: bool = False,
     platform: Optional[str] = None,
 ):
     """
@@ -547,6 +598,11 @@ def _auto_generate_claims(
         if event.expires_at and event.expires_at < datetime.utcnow():
             return
 
+        settlement_policy = _event_settlement_policy(event)
+        if not settlement_policy["claim_allowed"]:
+            print(f"[TriggerClaims] Skipping claim automation for event {event.id}: {settlement_policy['reason']}")
+            return
+
         # Find active policies and apply location/platform eligibility in Python.
         # We cannot rely on Worker.city alone because recent device GPS may place
         # the worker in a different supported city than their original profile city.
@@ -557,12 +613,29 @@ def _auto_generate_claims(
             .all()
         )
 
+
         claims_created = 0
         for policy in active_policies:
             worker = policy.worker
             eligibility = _worker_trigger_eligibility(worker, city, trigger_type, platform=platform)
             if not eligibility["eligible"]:
                 continue
+
+            # ── Feature 5: Waiting-period / Cooling-off gate ──────────────
+            cooling = evaluate_cooling_off(
+                policy.start_date,
+                is_simulated=is_simulated,
+                bypass_gate=bypass_gate,
+                is_renewal=getattr(policy, "is_renewal", False),
+            )
+            if not cooling["eligible"]:
+                print(
+                    f"[CoolingOff] Worker {worker.id} policy {policy.id} blocked "
+                    f"— {cooling['reason']}"
+                )
+                continue  # Silent skip — policy in waiting period
+            # ──────────────────────────────────────────────────────────────
+
 
             payout_city = eligibility.get("effective_city") or worker.city
             payout = get_payout_amount(trigger_type, policy.tier, payout_city)
@@ -634,14 +707,21 @@ def _auto_generate_claims(
             }
 
             claim_num = "CLM-" + ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-            is_auto_approved = fraud["decision"] == "AUTO_APPROVED"
+            final_decision = fraud["decision"]
+            if settlement_policy["force_manual_review"]:
+                final_decision = "MANUAL_REVIEW"
+                fraud["flags"] = list(fraud.get("flags") or [])
+                fraud["flags"].append(settlement_policy["reason"])
+                fraud["cross_source_valid"] = False
+
+            is_auto_approved = final_decision == "AUTO_APPROVED"
 
             claim = Claim(
                 claim_number=claim_num,
                 worker_id=worker.id,
                 policy_id=policy.id,
                 trigger_event_id=event.id,
-                status=status_map.get(fraud["decision"], ClaimStatus.PENDING_REVIEW),
+                status=status_map.get(final_decision, ClaimStatus.PENDING_REVIEW),
                 payout_amount=payout,
                 authenticity_score=fraud["score"],
                 gps_valid=fraud["gps_valid"],
@@ -660,15 +740,38 @@ def _auto_generate_claims(
                 weather_cross_valid=fraud.get("weather_cross_valid", True),
                 velocity_valid=fraud.get("velocity_valid", True),
                 is_simulated=is_simulated,
+                trigger_confidence_score=event.confidence_score,
+                appeal_status="none",
+                recent_activity_valid=eligibility.get("recent_activity_valid", True),
+                recent_activity_at=eligibility.get("recent_activity_at"),
+                recent_activity_age_hours=eligibility.get("recent_activity_age_hours"),
+                recent_activity_reason=eligibility.get("recent_activity_reason"),
+                cooling_off_cleared=True,
+                cooling_off_hours_at_claim=round(
+                    (datetime.utcnow() - policy.start_date).total_seconds() / 3600, 2
+                ),
             )
             db.add(claim)
             db.flush()  # Get claim.id for payout transaction
 
+            # Persist immutable claim snapshot for grievance/appeal review (Phase 1)
+            try:
+                from services.grievance_service import persist_claim_snapshot
+                persist_claim_snapshot(claim, event, eligibility, db)
+            except Exception as _snap_err:
+                print(f"[ClaimSnapshot] Could not persist snapshot for claim {claim.id}: {_snap_err}")
+
             # Phase 3: Razorpay payout (or mock fallback)
+
             if is_auto_approved:
                 try:
                     from services.payout_service import initiate_payout
                     initiate_payout(claim, worker, db)
+                except ValueError as e:
+                    claim.status = ClaimStatus.MANUAL_REVIEW
+                    claim.fraud_flags = "; ".join(
+                        [flag for flag in [claim.fraud_flags, f"Recent activity gate: {e}"] if flag]
+                    )
                 except Exception as e:
                     # Fallback: mark paid with mock ref if payout service fails
                     claim.paid_at = datetime.utcnow()

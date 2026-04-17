@@ -45,6 +45,7 @@ from sqlalchemy.pool import StaticPool
 from starlette.testclient import TestClient
 from jose import jwt
 from passlib.context import CryptContext
+import json
 
 # ── Internal imports (resolved via sys.path above) ────────────────────
 from database import Base, get_db
@@ -54,10 +55,13 @@ from models import (
     Policy,
     TriggerEvent,
     Claim,
+    PayoutTransaction,
     PolicyStatus,
     ClaimStatus,
     TriggerType,
     PolicyTier,
+    PayoutTransactionStatus,
+    TransactionType,
 )
 
 # ─────────────────────────────────────────────────────────────────────
@@ -68,6 +72,8 @@ ALGORITHM = "HS256"
 TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours, same as auth.py
 
 _pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+_DEFAULT_LAST_LOCATION = object()
+_DEFAULT_CLAIM_FIELD = object()
 
 # ─────────────────────────────────────────────────────────────────────
 # Helper — not a fixture, can be imported directly by test modules
@@ -297,6 +303,8 @@ def authed_client(test_db):
         disruption_streak=0,
         is_active=True,
         is_admin=True,  # Admin so tests can access admin endpoints
+        last_location_at=datetime.utcnow(),
+        last_activity_source="session_ping",
     )
     test_db.add(worker)
     test_db.commit()
@@ -356,7 +364,8 @@ def make_worker(test_db):
         home_lng: float | None = None,
         last_known_lat: float | None = None,
         last_known_lng: float | None = None,
-        last_location_at: datetime | None = None,
+        last_location_at=_DEFAULT_LAST_LOCATION,
+        last_activity_source: str | None = "session_ping",
     ) -> Worker:
         _counter["n"] += 1
         n = _counter["n"]
@@ -365,6 +374,9 @@ def make_worker(test_db):
         # constraint violations.
         effective_phone = phone if phone is not None else f"800000{n:04d}"
         effective_email = email if email is not None else f"worker{n}@zynvaro.test"
+        effective_last_location = (
+            datetime.utcnow() if last_location_at is _DEFAULT_LAST_LOCATION else last_location_at
+        )
 
         worker = Worker(
             full_name=full_name,
@@ -383,7 +395,8 @@ def make_worker(test_db):
             home_lng=home_lng,
             last_known_lat=last_known_lat,
             last_known_lng=last_known_lng,
-            last_location_at=last_location_at,
+            last_location_at=effective_last_location,
+            last_activity_source=last_activity_source,
             is_active=is_active,
             is_admin=is_admin,
         )
@@ -494,6 +507,8 @@ def make_trigger(test_db):
         is_validated: bool = True,
         severity: str = "high",
         description: str | None = None,
+        confidence_score: float = 100.0,
+        source_log: str | None = None,
         detected_at: datetime | None = None,
         expires_at: datetime | None = None,
     ) -> TriggerEvent:
@@ -515,6 +530,8 @@ def make_trigger(test_db):
             is_validated=is_validated,
             severity=severity,
             description=effective_description,
+            confidence_score=confidence_score,
+            source_log=source_log,
             detected_at=effective_detected,
             expires_at=effective_expires,
         )
@@ -559,24 +576,36 @@ def make_claim(test_db):
         cross_source_valid: bool = True,
         fraud_flags: str | None = None,
         upi_id: str | None = "test@okaxis",
-        payment_ref: str | None = None,
-        paid_at: datetime | None = None,
+        payment_ref=_DEFAULT_CLAIM_FIELD,
+        paid_at=_DEFAULT_CLAIM_FIELD,
         auto_processed: bool = True,
+        trigger_confidence_score: float | None = None,
+        appeal_status: str = "none",
+        appeal_reason: str | None = None,
+        appealed_at: datetime | None = None,
+        recent_activity_valid: bool = True,
+        recent_activity_at=_DEFAULT_CLAIM_FIELD,
+        recent_activity_age_hours: float | None = 1.0,
+        recent_activity_reason: str | None = "Recent session activity confirmed within payout window.",
         claim_number: str | None = None,
     ) -> Claim:
         _counter["n"] += 1
         n = _counter["n"]
         effective_number = claim_number if claim_number is not None else f"CLM-TEST-{n:05d}"
-        effective_paid_at = (
-            paid_at
-            if paid_at is not None
-            else (datetime.utcnow() - timedelta(minutes=5) if status == ClaimStatus.AUTO_APPROVED else None)
-        )
-        effective_payment_ref = (
-            payment_ref
-            if payment_ref is not None
-            else (f"MOCK-UPI-{effective_number}" if status == ClaimStatus.AUTO_APPROVED else None)
-        )
+        if paid_at is _DEFAULT_CLAIM_FIELD:
+            effective_paid_at = datetime.utcnow() - timedelta(minutes=5) if status == ClaimStatus.AUTO_APPROVED else None
+        else:
+            effective_paid_at = paid_at
+
+        if payment_ref is _DEFAULT_CLAIM_FIELD:
+            effective_payment_ref = f"MOCK-UPI-{effective_number}" if status == ClaimStatus.AUTO_APPROVED else None
+        else:
+            effective_payment_ref = payment_ref
+
+        if recent_activity_at is _DEFAULT_CLAIM_FIELD:
+            effective_recent_activity_at = datetime.utcnow()
+        else:
+            effective_recent_activity_at = recent_activity_at
 
         claim = Claim(
             claim_number=effective_number,
@@ -595,10 +624,120 @@ def make_claim(test_db):
             payment_ref=effective_payment_ref,
             paid_at=effective_paid_at,
             auto_processed=auto_processed,
+            trigger_confidence_score=trigger_confidence_score,
+            appeal_status=appeal_status,
+            appeal_reason=appeal_reason,
+            appealed_at=appealed_at,
+            recent_activity_valid=recent_activity_valid,
+            recent_activity_at=effective_recent_activity_at,
+            recent_activity_age_hours=recent_activity_age_hours,
+            recent_activity_reason=recent_activity_reason,
         )
         test_db.add(claim)
         test_db.commit()
         test_db.refresh(claim)
         return claim
+
+    return _factory
+
+
+@pytest.fixture(scope="function")
+def make_payout_txn(test_db):
+    """
+    Factory fixture that creates and returns a ``PayoutTransaction`` ORM object.
+
+    Defaults to a settled claim payout transaction linked to the provided
+    claim/worker so tests can focus on explainability and payment-state
+    behavior without repeating transaction boilerplate.
+    """
+    _counter = {"n": 0}
+
+    def _factory(
+        *,
+        claim: Claim | None = None,
+        worker: Worker | None = None,
+        policy: Policy | None = None,
+        transaction_type: str = TransactionType.CLAIM_PAYOUT,
+        status: str = PayoutTransactionStatus.SETTLED,
+        gateway_name: str = "razorpay",
+        amount_requested: float | None = None,
+        amount_settled: float | None = None,
+        currency: str = "INR",
+        upi_id: str | None = "test@okaxis",
+        upi_ref: str | None = None,
+        razorpay_order_id: str | None = None,
+        razorpay_payment_id: str | None = None,
+        gateway_payload: str | None = None,
+        failure_reason: str | None = None,
+        initiated_at: datetime | None = None,
+        settled_at: datetime | None = None,
+        retry_count: int = 0,
+        max_retries: int = 3,
+        internal_txn_id: str | None = None,
+    ) -> PayoutTransaction:
+        _counter["n"] += 1
+        n = _counter["n"]
+
+        effective_worker = worker or (claim.worker if claim is not None else None)
+        effective_policy = policy or (claim.policy if claim is not None else None)
+        if effective_worker is None:
+            raise ValueError("make_payout_txn requires worker=... or claim=...")
+
+        effective_amount_requested = (
+            amount_requested
+            if amount_requested is not None
+            else (claim.payout_amount if claim is not None else 350.0)
+        )
+        effective_amount_settled = (
+            amount_settled
+            if amount_settled is not None
+            else (effective_amount_requested if status == PayoutTransactionStatus.SETTLED else None)
+        )
+        effective_initiated_at = initiated_at or datetime.utcnow() - timedelta(minutes=3)
+        effective_settled_at = (
+            settled_at
+            if settled_at is not None
+            else (datetime.utcnow() - timedelta(minutes=1) if status == PayoutTransactionStatus.SETTLED else None)
+        )
+        effective_upi_ref = (
+            upi_ref
+            if upi_ref is not None
+            else (f"UTRTEST{n:06d}" if status == PayoutTransactionStatus.SETTLED else None)
+        )
+        effective_internal_id = internal_txn_id or f"TXN-TEST-{n:06d}"
+        effective_payload = gateway_payload or json.dumps(
+            {
+                "status": status,
+                "type": transaction_type,
+                "worker_id": effective_worker.id,
+            }
+        )
+
+        txn = PayoutTransaction(
+            transaction_type=transaction_type,
+            claim_id=claim.id if claim is not None else None,
+            policy_id=effective_policy.id if effective_policy is not None else None,
+            worker_id=effective_worker.id,
+            upi_id=upi_id,
+            upi_ref=effective_upi_ref,
+            internal_txn_id=effective_internal_id,
+            razorpay_order_id=razorpay_order_id,
+            razorpay_payment_id=razorpay_payment_id,
+            amount_requested=effective_amount_requested,
+            amount_settled=effective_amount_settled,
+            currency=currency,
+            status=status,
+            failure_reason=failure_reason,
+            retry_count=retry_count,
+            max_retries=max_retries,
+            gateway_name=gateway_name,
+            gateway_payload=effective_payload,
+            initiated_at=effective_initiated_at,
+            settled_at=effective_settled_at,
+        )
+        test_db.add(txn)
+        test_db.commit()
+        test_db.refresh(txn)
+        return txn
 
     return _factory

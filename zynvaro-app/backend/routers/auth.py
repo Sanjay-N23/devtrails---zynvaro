@@ -63,6 +63,7 @@ class WorkerProfile(BaseModel):
     last_known_lat: Optional[float] = None
     last_known_lng: Optional[float] = None
     last_location_at: Optional[datetime] = None
+    last_activity_source: Optional[str] = None
     effective_city: Optional[str] = None
     location_source: Optional[str] = None
     location_fresh: bool = False
@@ -89,6 +90,27 @@ def _serialize_worker_profile(worker: Worker) -> WorkerProfile:
         "last_location_at": location.get("last_location_at"),
     })
     return WorkerProfile(**base)
+
+
+def _touch_session_activity(worker: Worker, db: Optional[Session] = None) -> Worker:
+    worker.last_location_at = datetime.utcnow()
+    if worker.last_activity_source == "gps_ping":
+        pass
+    elif (
+        worker.last_activity_source is None
+        and worker.last_known_lat is not None
+        and worker.last_known_lng is not None
+    ):
+        # Backward compatibility for older rows/tests that have a real GPS fix
+        # but predate the explicit activity-source column.
+        pass
+    else:
+        worker.last_activity_source = "session_ping"
+    if db is not None:
+        db.add(worker)
+        db.commit()
+        db.refresh(worker)
+    return worker
 
 
 # ─── Helpers ────────────────────────────────────────────────────
@@ -156,7 +178,11 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
         home_lng=home_lng,
         last_known_lat=home_lat,
         last_known_lng=home_lng,
-        last_location_at=datetime.utcnow() if home_lat else None,
+        # Registration itself is a real user-originated app session.
+        # Keep the pincode-derived home coordinates, but do not classify a
+        # newly registered worker as signup-seeded/inactive for payout gating.
+        last_location_at=datetime.utcnow(),
+        last_activity_source="session_ping",
     )
     db.add(worker)
     db.commit()
@@ -179,6 +205,7 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid phone or password",
         )
+    worker = _touch_session_activity(worker, db)
     token = create_access_token({"sub": str(worker.id)})
     return TokenResponse(
         access_token=token,
@@ -189,7 +216,8 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 
 
 @router.get("/me", response_model=WorkerProfile)
-def get_profile(worker: Worker = Depends(get_current_worker)):
+def get_profile(worker: Worker = Depends(get_current_worker), db: Session = Depends(get_db)):
+    worker = _touch_session_activity(worker, db)
     return _serialize_worker_profile(worker)
 
 
@@ -204,6 +232,7 @@ def update_location(loc: LocationUpdate, worker: Worker = Depends(get_current_wo
     worker.last_known_lat = loc.lat
     worker.last_known_lng = loc.lng
     worker.last_location_at = datetime.utcnow()
+    worker.last_activity_source = "gps_ping"
     db.commit()
     profile = _serialize_worker_profile(worker)
     return {

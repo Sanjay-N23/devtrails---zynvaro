@@ -9,6 +9,7 @@ from database import get_db
 from models import Worker, Policy, PolicyStatus
 from routers.auth import get_current_worker
 from ml.premium_engine import calculate_premium, TIER_CONFIG
+from services.cooling_off import policy_cooling_off_status, get_cooling_off_hours
 
 router = APIRouter(prefix="/policies", tags=["Policy Management"])
 
@@ -64,7 +65,13 @@ class PolicyResponse(BaseModel):
     streak_discount: float
     start_date: datetime
     end_date: Optional[datetime]
+    is_renewal: bool = False
     created_at: datetime
+    # Cooling-off / waiting-period fields
+    cooling_off_active: bool = False
+    cooling_off_hours: int = 24
+    cooling_off_eligible_at: Optional[datetime] = None
+    cooling_off_remaining_hours: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -80,6 +87,30 @@ class AllTiersQuote(BaseModel):
 def generate_policy_number() -> str:
     suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
     return f"ZYN-{suffix}"
+
+
+def _add_cooling_off(policy: Policy) -> dict:
+    """Compute cooling-off status and return extra fields for the response."""
+    status = policy_cooling_off_status(
+        policy.start_date,
+        is_renewal=getattr(policy, "is_renewal", False),
+    )
+    return {
+        "cooling_off_active": status["in_cooling_off"],
+        "cooling_off_hours": status["cooling_off_hours"],
+        "cooling_off_eligible_at": status["eligible_at"],
+        "cooling_off_remaining_hours": status["hours_remaining"],
+    }
+
+
+def _policy_response(policy: Policy) -> dict:
+    """Build a complete PolicyResponse dict including cooling-off metadata."""
+    base = {
+        c.name: getattr(policy, c.name)
+        for c in policy.__table__.columns
+    }
+    base.update(_add_cooling_off(policy))
+    return base
 
 
 def expire_stale_policies(db: Session):
@@ -187,11 +218,12 @@ def create_policy(
         streak_discount=abs(breakdown["streak_discount_inr"]),
         start_date=datetime.utcnow(),
         end_date=datetime.utcnow() + timedelta(days=7),
+        is_renewal=False,
     )
     db.add(policy)
     db.commit()
     db.refresh(policy)
-    return policy
+    return PolicyResponse(**_policy_response(policy))
 
 
 @router.get("/active", response_model=Optional[PolicyResponse])
@@ -199,14 +231,16 @@ def get_active_policy(
     worker: Worker = Depends(get_current_worker),
     db: Session = Depends(get_db),
 ):
-    """Get the worker's current active policy."""
+    """Get the worker's current active policy with cooling-off countdown."""
     expire_stale_policies(db)
     policy = (
         db.query(Policy)
         .filter(Policy.worker_id == worker.id, Policy.status == PolicyStatus.ACTIVE)
         .first()
     )
-    return policy
+    if policy is None:
+        return None
+    return PolicyResponse(**_policy_response(policy))
 
 
 @router.get("/", response_model=List[PolicyResponse])
@@ -214,8 +248,9 @@ def list_policies(
     worker: Worker = Depends(get_current_worker),
     db: Session = Depends(get_db),
 ):
-    """Get all policies for the worker."""
-    return db.query(Policy).filter(Policy.worker_id == worker.id).order_by(Policy.created_at.desc()).all()
+    """Get all policies for the worker, each with cooling-off status."""
+    policies = db.query(Policy).filter(Policy.worker_id == worker.id).order_by(Policy.created_at.desc()).all()
+    return [PolicyResponse(**_policy_response(p)) for p in policies]
 
 
 @router.post("/renew", response_model=PolicyResponse, status_code=201)
@@ -248,6 +283,7 @@ def renew_policy(
 
     # Extend by 7 days from current end_date (not from now — avoids gaps)
     policy.end_date = (policy.end_date or datetime.utcnow()) + timedelta(days=7)
+    policy.is_renewal = True       # Mark as renewal — 0h cooling-off
     policy.weekly_premium = pricing["weekly_premium"]
     policy.zone_loading = breakdown["zone_loading_inr"]
     policy.seasonal_loading = breakdown["seasonal_loading_inr"]
@@ -256,7 +292,7 @@ def renew_policy(
 
     db.commit()
     db.refresh(policy)
-    return policy
+    return PolicyResponse(**_policy_response(policy))
 
 
 # ─── Razorpay Checkout Flow (Phase 3: Premium Payment Gateway) ────

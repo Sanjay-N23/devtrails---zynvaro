@@ -15,7 +15,7 @@
 
 [![Guidewire DEVTrails](https://img.shields.io/badge/🏆_Guidewire-DEVTrails_2026-FF6B35?style=for-the-badge)](https://devtrails.guidewire.com)
 [![Team](https://img.shields.io/badge/Team-AeroFyta-blueviolet?style=for-the-badge&logo=rocket&logoColor=white)](#-team-aerofyta)
-[![Phase](https://img.shields.io/badge/Phase_3-Scale_%26_Optimise_(SOAR)-FF6B35?style=for-the-badge&logo=shield&logoColor=white)](#)
+[![Phase](https://img.shields.io/badge/Phase_3.2-Grievance_%26_Appeals-6366f1?style=for-the-badge&logo=shield&logoColor=white)](#)
 [![Riders](https://img.shields.io/badge/Target-12.7M_Gig_Workers-E34F26?style=for-the-badge&logo=uber&logoColor=white)](#)
 
 <br>
@@ -801,7 +801,27 @@ During peak monsoon, trigger probability rises to 25-35%. The dynamic pricing en
 - [x] Admin dashboard (loss ratios, trigger feed, fraud flags, analytics)
 - [x] Evidence Bundle for every claim (multi-source proof card)
 - [x] GPS / Location Engine Hardening (Phase 3.1)
+- [x] Waiting Period / Cooling-Off Logic with 65-test edge-case suite
+- [x] Claim Explainability Engine (SHAP-style "Why was I paid/denied?" per claim)
+- [x] Source Confidence & Settlement Gating (multi-tier data-source trust rankings)
+- [x] Recent Activity Gate (blocks payout if worker has no real app session before claim)
 - [x] 5-minute demo video + final pitch deck
+
+### Phase 3.2 — Grievance & Appeals Workflow <sub>Apr 17</sub>
+
+> Every disputable decision now has a structured, auditable, SLA-enforced resolution path.
+
+- [x] **GrievanceCase ORM** — 5 new DB tables: `GrievanceCase`, `GrievanceMessage`, `GrievanceDecision`, `GrievanceAuditEvent`, `ClaimSnapshot`
+- [x] **Grievance Service** — deterministic triage engine (AUTO / OPS / CLAIM_REVIEW / INSURER queues), 72-hour SLA enforcement, reopen limit, immutable claim snapshot
+- [x] **Worker API** (`/cases`, `/cases/{id}`, `/claims/{id}/appeal`, `/claims/{id}/appeal-eligibility`) — structured appeal & grievance submission with 48-hour eligibility window
+- [x] **Admin API** (`/admin/cases`) — queue list, triage override, resolve (uphold/reverse/partial), escalate to insurer, reopen, payout-retry
+- [x] **Claim Snapshot Hook** — every auto-generated claim persists immutable decision inputs for future appeal audit
+- [x] **Frontend — Cases tab** — new bottom nav item, SLA promise banner, case list with status badges
+- [x] **Frontend — Appeal Bottom Sheet** — 2-step structured form (9 reason codes → summary textarea) replaces old `confirm+prompt`
+- [x] **Frontend — Grievance Bottom Sheet** — 2-step form (9 category codes → textarea)
+- [x] **Frontend — Case Detail Panel** — full-screen overlay with message timeline (🤖 Zynvaro / 👤 Worker), decision block, worker reply form
+- [x] **Test Suite** — 42 unit tests (`test_grievance_service.py`) + 22 API tests (`test_cases_api.py`) — **1,337 passed, 0 failed**
+- [x] **Bug Fix** — case detail panel moved outside `#app-wrapper` (which has `position:fixed; overflow:hidden`) so it renders as a true full-screen viewport overlay
 
 ```mermaid
 gantt
@@ -986,22 +1006,38 @@ Follow this exact sequence to reproduce the demo video:
 ```
 zynvaro-app/
 ├── backend/
-│   ├── main.py              # FastAPI app + seed data
-│   ├── models.py            # DB models: Worker, Policy, TriggerEvent, Claim
+│   ├── main.py              # FastAPI app + router registration (priority: cases > claims)
+│   ├── models.py            # ORM: Worker, Policy, TriggerEvent, Claim + 5 Grievance tables
 │   ├── database.py          # SQLite + SQLAlchemy
 │   ├── routers/
 │   │   ├── auth.py          # Register, Login (JWT), /me
-│   │   ├── policies.py      # Quote, Activate, Cancel
-│   │   ├── triggers.py      # Simulate trigger + auto-claim background task
-│   │   └── claims.py        # Claims CRUD + admin stats + workers
-│   ├── ml/
-│   │   └── premium_engine.py  # Dynamic pricing engine
+│   │   ├── policies.py      # Quote, Activate, Cancel, Renewal
+│   │   ├── triggers.py      # Simulate trigger + auto-claim + snapshot hook
+│   │   ├── claims.py        # Claims CRUD + admin stats + workers + explainability
+│   │   ├── cases.py         # [NEW] Worker-facing grievance & appeal API
+│   │   └── admin_cases.py   # [NEW] Admin case queue + resolve/escalate/reopen
 │   ├── services/
-│   │   ├── trigger_engine.py  # 6 parametric trigger checks + fraud scoring
-│   │   └── orchestrator.py    # Autonomous 15-min city poller (APScheduler)
+│   │   ├── trigger_engine.py    # 6 parametric trigger checks + fraud scoring
+│   │   ├── grievance_service.py # [NEW] Triage, SLA, state transitions, snapshot
+│   │   ├── cooling_off.py       # Waiting period / cooling-off rules
+│   │   ├── explainability.py    # Claim explainability payloads
+│   │   ├── source_hierarchy.py  # Data-source confidence & settlement gating
+│   │   └── waiting_period.py    # Policy waiting period enforcement
+│   ├── tests/
+│   │   ├── api/
+│   │   │   ├── test_cases_api.py          # [NEW] 22 grievance/appeal API tests
+│   │   │   ├── test_claim_explainability_api.py
+│   │   │   └── test_waiting_period_api.py
+│   │   └── unit/
+│   │       ├── test_grievance_service.py  # [NEW] 42 unit tests
+│   │       ├── test_cooling_off_service.py
+│   │       ├── test_explainability_payload.py
+│   │       ├── test_recent_activity_gate.py
+│   │       ├── test_source_confidence.py
+│   │       └── test_waiting_period_rules.py
 │   └── requirements.txt
 └── frontend/
-    ├── app.html             # Single-file PWA (5 pages)
+    ├── app.html             # Single-file PWA — 6 pages incl. Cases & Appeals
     ├── manifest.json        # PWA installability
     └── sw.js                # Service worker (offline support)
 ```
@@ -1025,6 +1061,18 @@ zynvaro-app/
 | `GET`  | `/claims/admin/stats` | ✅ | Platform analytics |
 | `GET`  | `/claims/admin/workers` | ✅ | All workers + policy status |
 | `GET`  | `/claims/admin/all` | ✅ | All claims with fraud scores |
+| `GET`  | `/claims/{id}/appeal-eligibility` | ✅ | **[NEW]** Pre-flight appeal check — 48h window, open case check, prefilled codes |
+| `POST` | `/claims/{id}/appeal` | ✅ | **[NEW]** Submit structured appeal → creates `GrievanceCase` |
+| `POST` | `/cases` | ✅ | **[NEW]** Submit generic grievance (non-claim) |
+| `GET`  | `/cases` | ✅ | **[NEW]** Worker's own case list |
+| `GET`  | `/cases/{id}` | ✅ | **[NEW]** Case detail + messages + decision |
+| `POST` | `/cases/{id}/messages` | ✅ | **[NEW]** Worker reply (when status is `WAITING_FOR_WORKER`) |
+| `GET`  | `/admin/cases` | ✅ Admin | **[NEW]** All cases — filterable by status/queue/SLA |
+| `GET`  | `/admin/cases/{id}` | ✅ Admin | **[NEW]** Full admin case view including claim snapshot |
+| `POST` | `/admin/cases/{id}/resolve` | ✅ Admin | **[NEW]** Uphold / Reverse / Partial — mandatory internal note |
+| `POST` | `/admin/cases/{id}/triage` | ✅ Admin | **[NEW]** Override triage queue |
+| `POST` | `/admin/cases/{id}/escalate` | ✅ Admin | **[NEW]** Escalate to insurer queue |
+| `POST` | `/admin/cases/{id}/reopen` | ✅ Admin | **[NEW]** Reopen resolved case (up to 2× limit) |
 
 ### 🌱 Seeded Demo Data
 

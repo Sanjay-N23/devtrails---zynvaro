@@ -8,6 +8,7 @@ import json
 from database import get_db
 from models import Claim, TriggerEvent, Policy, Worker, ClaimStatus, PolicyStatus
 from routers.auth import get_current_worker
+from services.explainability import ExplainabilityPayload, build_explainability_payload
 
 router = APIRouter(prefix="/claims", tags=["Claims Management"])
 
@@ -47,6 +48,17 @@ class ClaimResponse(BaseModel):
     shift_valid: Optional[bool] = True
     weather_cross_valid: Optional[bool] = True
     velocity_valid: Optional[bool] = True
+    
+    # Explainability & Appeals
+    trigger_confidence_score: Optional[float] = 100.0
+    appeal_status: Optional[str] = "none"
+    appeal_reason: Optional[str] = None
+    appealed_at: Optional[datetime] = None
+    source_log: Optional[str] = None
+    recent_activity_valid: Optional[bool] = True
+    recent_activity_at: Optional[datetime] = None
+    recent_activity_age_hours: Optional[float] = None
+    recent_activity_reason: Optional[str] = None
 
     # Payout gateway info (Phase 3: Razorpay)
     payout_gateway: Optional[str] = None       # "razorpay" or "mock"
@@ -60,8 +72,15 @@ class ClaimResponse(BaseModel):
     trigger_type: Optional[str] = None
     trigger_city: Optional[str] = None
     trigger_measured_value: Optional[float] = None
+    trigger_threshold_value: Optional[float] = None
     trigger_unit: Optional[str] = None
     trigger_description: Optional[str] = None
+    trigger_source_primary: Optional[str] = None
+    trigger_source_secondary: Optional[str] = None
+    trigger_detected_at: Optional[datetime] = None
+    trigger_expires_at: Optional[datetime] = None
+    trigger_is_validated: Optional[bool] = None
+    trigger_severity: Optional[str] = None
 
     # Nested policy info
     policy_tier: Optional[str] = None
@@ -92,6 +111,14 @@ class WeeklySummary(BaseModel):
     claims_this_week: int = 0
     disruptions_this_week: int = 0
     total_premiums_paid: float = 0.0
+
+
+class ClaimAppealRequest(BaseModel):
+    reason: str
+
+
+class ClaimStatusUpdateRequest(BaseModel):
+    status: str
 
 
 # ─── Helpers ────────────────────────────────────────────────────
@@ -193,6 +220,121 @@ def _get_payout_status(claim: Claim) -> Optional[str]:
         return "settled"
     return "pending"
 
+
+def _build_source_log(trigger: Optional[TriggerEvent]) -> Optional[str]:
+    if not trigger:
+        return None
+    if getattr(trigger, "source_log", None):
+        return trigger.source_log
+
+    lines = []
+    if trigger.source_primary:
+        lines.append(f"Primary: {trigger.source_primary}")
+    if trigger.source_secondary:
+        lines.append(f"Secondary: {trigger.source_secondary}")
+    if trigger.is_validated is not None:
+        lines.append(
+            "Cross-source validation: PASSED"
+            if trigger.is_validated
+            else "Cross-source validation: PENDING"
+        )
+    return "\n".join(lines) if lines else None
+
+
+def _classify_source_tier(*parts: Optional[str]) -> str:
+    blob = " ".join(str(part) for part in parts if part).lower()
+    if any(token in blob for token in ("mock", "fallback", "simulation", "simulator", "override", "unavailable")):
+        return "fallback"
+    if any(token in blob for token in ("openweathermap", "waqi", "gdelt", "probe", "continuity", "live")):
+        return "secondary"
+    return "official"
+
+
+def _get_trigger_confidence(claim: Claim, trigger: Optional[TriggerEvent]) -> float:
+    claim_conf = getattr(claim, "trigger_confidence_score", None)
+    trigger_conf = getattr(trigger, "confidence_score", None) if trigger else None
+
+    if claim_conf is not None:
+        if trigger_conf is not None and float(claim_conf) == 100.0 and float(trigger_conf) != 100.0:
+            return float(trigger_conf)
+        return float(claim_conf)
+    if trigger_conf is not None:
+        return float(trigger_conf)
+    return 100.0
+
+
+def _get_claim_or_404(db: Session, claim_id: int) -> Claim:
+    claim = db.query(Claim).filter(Claim.id == claim_id).first()
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    return claim
+
+
+def _claim_recent_activity_snapshot(claim: Claim, worker: Worker) -> dict:
+    if getattr(claim, "recent_activity_valid", None) is not None and (
+        getattr(claim, "recent_activity_reason", None) or getattr(claim, "recent_activity_at", None)
+    ):
+        return {
+            "eligible": bool(claim.recent_activity_valid),
+            "activity_at": getattr(claim, "recent_activity_at", None),
+            "activity_age_hours": getattr(claim, "recent_activity_age_hours", None),
+            "reason": getattr(claim, "recent_activity_reason", None),
+        }
+
+    from services.fraud_engine import get_recent_activity_snapshot
+
+    snapshot = get_recent_activity_snapshot(worker)
+    claim.recent_activity_valid = snapshot["eligible"]
+    claim.recent_activity_at = snapshot.get("activity_at")
+    claim.recent_activity_age_hours = snapshot.get("activity_age_hours")
+    claim.recent_activity_reason = snapshot.get("reason")
+    return snapshot
+
+
+def _ensure_recent_activity_gate(claim: Claim, worker: Worker) -> None:
+    snapshot = _claim_recent_activity_snapshot(claim, worker)
+    if not snapshot["eligible"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Payout blocked by recent-activity gate: {snapshot.get('reason')}",
+        )
+
+
+def _approve_claim_with_payout(claim: Claim, db: Session) -> Claim:
+    if claim.status not in (ClaimStatus.PENDING_REVIEW, ClaimStatus.MANUAL_REVIEW):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot approve claim with status '{claim.status}'. Only PENDING_REVIEW or MANUAL_REVIEW claims can be approved.",
+        )
+
+    claim_worker = db.query(Worker).filter(Worker.id == claim.worker_id).first()
+    _ensure_recent_activity_gate(claim, claim_worker)
+    claim.status = ClaimStatus.PAID
+    try:
+        from services.payout_service import initiate_payout
+        initiate_payout(claim, claim_worker, db)
+    except Exception as e:
+        claim.paid_at = datetime.utcnow()
+        claim.payment_ref = f"MANUAL-UPI-{claim.claim_number}"
+        print(f"[Payout] Admin approve payout error, using mock: {e}")
+
+    db.commit()
+    db.refresh(claim)
+    return claim
+
+
+def _reject_claim(claim: Claim, db: Session) -> Claim:
+    if claim.status not in (ClaimStatus.PENDING_REVIEW, ClaimStatus.MANUAL_REVIEW):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot reject claim with status '{claim.status}'. Only PENDING_REVIEW or MANUAL_REVIEW claims can be rejected.",
+        )
+
+    claim.status = ClaimStatus.REJECTED
+    db.commit()
+    db.refresh(claim)
+    return claim
+
 def enrich_claim(claim: Claim) -> ClaimResponse:
     """Add trigger + policy info to claim response."""
     trigger = claim.trigger_event
@@ -222,6 +364,15 @@ def enrich_claim(claim: Claim) -> ClaimResponse:
         shift_valid=claim.shift_valid,
         weather_cross_valid=claim.weather_cross_valid,
         velocity_valid=claim.velocity_valid,
+        trigger_confidence_score=_get_trigger_confidence(claim, trigger),
+        appeal_status=claim.appeal_status or "none",
+        appeal_reason=getattr(claim, "appeal_reason", None),
+        appealed_at=getattr(claim, "appealed_at", None),
+        source_log=_build_source_log(trigger),
+        recent_activity_valid=getattr(claim, "recent_activity_valid", True),
+        recent_activity_at=getattr(claim, "recent_activity_at", None),
+        recent_activity_age_hours=getattr(claim, "recent_activity_age_hours", None),
+        recent_activity_reason=getattr(claim, "recent_activity_reason", None),
         # Payout gateway info (Phase 3: Razorpay)
         payout_gateway=_get_payout_gateway(claim),
         payout_utr=_get_payout_utr(claim),
@@ -233,8 +384,15 @@ def enrich_claim(claim: Claim) -> ClaimResponse:
         trigger_type=trigger.trigger_type if trigger else None,
         trigger_city=trigger.city if trigger else None,
         trigger_measured_value=trigger.measured_value if trigger else None,
+        trigger_threshold_value=trigger.threshold_value if trigger else None,
         trigger_unit=trigger.unit if trigger else None,
         trigger_description=trigger.description if trigger else None,
+        trigger_source_primary=trigger.source_primary if trigger else None,
+        trigger_source_secondary=trigger.source_secondary if trigger else None,
+        trigger_detected_at=trigger.detected_at if trigger else None,
+        trigger_expires_at=trigger.expires_at if trigger else None,
+        trigger_is_validated=trigger.is_validated if trigger else None,
+        trigger_severity=trigger.severity if trigger else None,
         policy_tier=policy.tier if policy else None,
     )
 
@@ -365,6 +523,60 @@ def get_claim(
     claim = db.query(Claim).filter(Claim.id == claim_id, Claim.worker_id == worker.id).first()
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
+    return enrich_claim(claim)
+
+
+@router.get("/{claim_id}/explainability", response_model=ExplainabilityPayload)
+def get_claim_explainability(
+    claim_id: int,
+    worker: Worker = Depends(get_current_worker),
+    db: Session = Depends(get_db),
+):
+    """Worker-safe explainability snapshot for a single claim."""
+    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.worker_id == worker.id).first()
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+
+    latest_txn = _get_latest_payout_txn(claim)
+    eligibility_ctx = {
+        "policy_active": (claim.policy.status == PolicyStatus.ACTIVE) if claim.policy else None,
+    }
+    return build_explainability_payload(
+        claim=claim,
+        policy=claim.policy,
+        trigger_event=claim.trigger_event,
+        payout_txn=latest_txn,
+        eligibility_ctx=eligibility_ctx,
+    )
+
+
+@router.post("/{claim_id}/appeal", response_model=ClaimResponse)
+def appeal_claim(
+    claim_id: int,
+    req: ClaimAppealRequest,
+    worker: Worker = Depends(get_current_worker),
+    db: Session = Depends(get_db),
+):
+    """Persist a worker appeal against a claim decision within the 48-hour window."""
+    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.worker_id == worker.id).first()
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+
+    reason = (req.reason or "").strip()
+    if len(reason) < 10:
+        raise HTTPException(status_code=400, detail="Appeal reason is too short")
+
+    if claim.created_at < datetime.utcnow() - timedelta(hours=48):
+        raise HTTPException(status_code=400, detail="Appeal window has expired")
+
+    if (claim.appeal_status or "none") not in {"none", "resolved_denied", "resolved_paid"}:
+        raise HTTPException(status_code=400, detail="An appeal is already in progress for this claim")
+
+    claim.appeal_status = "initiated"
+    claim.appeal_reason = reason
+    claim.appealed_at = datetime.utcnow()
+    db.commit()
+    db.refresh(claim)
     return enrich_claim(claim)
 
 
@@ -503,11 +715,36 @@ def admin_transactions(
     )
     result = []
     for t in txns:
+        claim = t.claim
+        trigger = claim.trigger_event if claim else None
         display_reference, reference_label, reference_kind, flow_note = txn_reference_meta(t)
+        if t.transaction_type == "premium_payment":
+            evidence_confidence_score = 100.0 if t.status == "settled" else 78.0 if t.gateway_name == "razorpay" else 45.0
+            evidence_source_primary = "Razorpay Checkout" if t.gateway_name == "razorpay" else "Mock collection flow"
+            evidence_source_secondary = "Gateway callback verification" if t.razorpay_payment_id else None
+            evidence_source_log = (
+                "Primary: Razorpay Checkout\nSecondary: Gateway callback verification\nPayment collection recorded."
+                if t.gateway_name == "razorpay"
+                else "Primary: Mock collection flow\nPayment collection recorded in demo mode."
+            )
+            evidence_is_validated = bool(t.razorpay_payment_id or t.status == "settled")
+        else:
+            evidence_confidence_score = _get_trigger_confidence(claim, trigger) if claim else None
+            evidence_source_primary = trigger.source_primary if trigger else None
+            evidence_source_secondary = trigger.source_secondary if trigger else None
+            evidence_source_log = _build_source_log(trigger)
+            evidence_is_validated = trigger.is_validated if trigger else None
+        evidence_source_tier = _classify_source_tier(
+            evidence_source_primary,
+            evidence_source_secondary,
+            evidence_source_log,
+        ) if (evidence_source_primary or evidence_source_secondary or evidence_source_log) else None
         result.append({
             "id": t.id,
             "transaction_type": t.transaction_type,
             "worker_id": t.worker_id,
+            "claim_id": t.claim_id,
+            "claim_number": claim.claim_number if claim else None,
             "amount": t.amount_requested,
             "amount_settled": t.amount_settled,
             "status": t.status,
@@ -520,6 +757,14 @@ def admin_transactions(
             "reference_label": reference_label,
             "reference_kind": reference_kind,
             "flow_note": flow_note,
+            "trigger_type": trigger.trigger_type if trigger else None,
+            "trigger_city": trigger.city if trigger else None,
+            "evidence_confidence_score": evidence_confidence_score,
+            "evidence_source_primary": evidence_source_primary,
+            "evidence_source_secondary": evidence_source_secondary,
+            "evidence_source_log": evidence_source_log,
+            "evidence_source_tier": evidence_source_tier,
+            "evidence_is_validated": evidence_is_validated,
             "initiated_at": t.initiated_at.isoformat() if t.initiated_at else None,
             "settled_at": t.settled_at.isoformat() if t.settled_at else None,
         })
@@ -533,27 +778,8 @@ def admin_approve_claim(
     db: Session = Depends(get_db),
 ):
     """[Admin] Manually approve a PENDING_REVIEW or MANUAL_REVIEW claim → PAID."""
-    claim = db.query(Claim).filter(Claim.id == claim_id).first()
-    if not claim:
-        raise HTTPException(status_code=404, detail="Claim not found")
-    if claim.status not in (ClaimStatus.PENDING_REVIEW, ClaimStatus.MANUAL_REVIEW):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot approve claim with status '{claim.status}'. Only PENDING_REVIEW or MANUAL_REVIEW claims can be approved.",
-        )
-    claim.status = ClaimStatus.PAID
-    # Phase 3: Razorpay payout (or mock fallback)
-    try:
-        from services.payout_service import initiate_payout
-        claim_worker = db.query(Worker).filter(Worker.id == claim.worker_id).first()
-        initiate_payout(claim, claim_worker, db)
-    except Exception as e:
-        claim.paid_at = datetime.utcnow()
-        claim.payment_ref = f"MANUAL-UPI-{claim.claim_number}"
-        print(f"[Payout] Admin approve payout error, using mock: {e}")
-    db.commit()
-    db.refresh(claim)
-    return enrich_claim(claim)
+    claim = _get_claim_or_404(db, claim_id)
+    return enrich_claim(_approve_claim_with_payout(claim, db))
 
 
 @router.patch("/{claim_id}/reject", response_model=ClaimResponse)
@@ -563,15 +789,24 @@ def admin_reject_claim(
     db: Session = Depends(get_db),
 ):
     """[Admin] Manually reject a PENDING_REVIEW or MANUAL_REVIEW claim → REJECTED."""
-    claim = db.query(Claim).filter(Claim.id == claim_id).first()
-    if not claim:
-        raise HTTPException(status_code=404, detail="Claim not found")
-    if claim.status not in (ClaimStatus.PENDING_REVIEW, ClaimStatus.MANUAL_REVIEW):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot reject claim with status '{claim.status}'. Only PENDING_REVIEW or MANUAL_REVIEW claims can be rejected.",
-        )
-    claim.status = ClaimStatus.REJECTED
-    db.commit()
-    db.refresh(claim)
-    return enrich_claim(claim)
+    claim = _get_claim_or_404(db, claim_id)
+    return enrich_claim(_reject_claim(claim, db))
+
+
+@router.post("/{claim_id}/status", response_model=ClaimResponse)
+def admin_update_claim_status(
+    claim_id: int,
+    req: ClaimStatusUpdateRequest,
+    worker: Worker = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Compatibility endpoint for the PWA admin actions."""
+    claim = _get_claim_or_404(db, claim_id)
+    normalized = (req.status or "").strip().lower()
+
+    if normalized == "paid":
+        return enrich_claim(_approve_claim_with_payout(claim, db))
+    if normalized == "rejected":
+        return enrich_claim(_reject_claim(claim, db))
+
+    raise HTTPException(status_code=400, detail="Unsupported status update")
