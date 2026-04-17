@@ -3406,12 +3406,12 @@ async function simulateTrigger(forceDemoOverride = false) {
         try {
           const claims = await api('/claims/');
           matchedClaim = claims.find(c => {
-            // SQLite returns naive UTC datetime. Append 'Z' to properly parse as UTC,
-            // otherwise JS interprets it as Local Time, making it appear hours in the past!
-            const utcTimeString = c.created_at.includes('Z') ? c.created_at : c.created_at + 'Z';
-            return c.trigger_type === trigType &&
-                   c.trigger_city === city &&
-                   new Date(utcTimeString).getTime() >= requestStartedAt - 15000; // 15s leeway buffer
+            if (c.trigger_type !== trigType || c.trigger_city !== city) return false;
+            // Since /claims/ returns ordered by newest first, the first match we hit is the correct one.
+            // We apply a generous 24-hour time buffer to absorb ANY SQLite naive UTC parsing offset (e.g. IST +5:30 or PST -8:00)
+            const t = new Date(c.created_at).getTime();
+            if (isNaN(t)) return true;
+            return Math.abs(Date.now() - t) < 86400000;
           });
           if (matchedClaim) {
             payoutAmt = matchedClaim.paid_at ? matchedClaim.payout_amount : 0;
