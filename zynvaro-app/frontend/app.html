@@ -3405,11 +3405,14 @@ async function simulateTrigger(forceDemoOverride = false) {
         if (!document.getElementById('page-triggers').classList.contains('active')) return;
         try {
           const claims = await api('/claims/');
-          matchedClaim = claims.find(c =>
-            c.trigger_type === trigType &&
-            c.trigger_city === city &&
-            new Date(c.created_at).getTime() >= requestStartedAt - 3000
-          );
+          matchedClaim = claims.find(c => {
+            // SQLite returns naive UTC datetime. Append 'Z' to properly parse as UTC,
+            // otherwise JS interprets it as Local Time, making it appear hours in the past!
+            const utcTimeString = c.created_at.includes('Z') ? c.created_at : c.created_at + 'Z';
+            return c.trigger_type === trigType &&
+                   c.trigger_city === city &&
+                   new Date(utcTimeString).getTime() >= requestStartedAt - 15000; // 15s leeway buffer
+          });
           if (matchedClaim) {
             payoutAmt = matchedClaim.paid_at ? matchedClaim.payout_amount : 0;
             claimNum = matchedClaim.claim_number;
