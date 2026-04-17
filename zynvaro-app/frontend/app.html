@@ -457,7 +457,28 @@ body {
 
 /* ── CLAIM CARDS ── */
 .claim-card {
-  background: var(--card); border-radius: var(--r); padding: 14px; margin-bottom: 8px;
+  background: var(--card); border-radius: var(--r); padding: 14px; margin-bottom: 10px;
+  transition: box-shadow .2s;
+}
+.claim-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
+.claim-accordion-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  cursor: pointer; padding: 8px 0; border-top: 1px solid var(--border);
+  font-size: 12px; font-weight: 600; color: var(--text); user-select: none;
+}
+.claim-accordion-header .acc-chevron { font-size: 10px; color: var(--muted); transition: transform .2s; }
+.claim-accordion-header.open .acc-chevron { transform: rotate(90deg); }
+.claim-accordion-body { max-height: 0; overflow: hidden; transition: max-height .3s ease; }
+.claim-accordion-body.open { max-height: 600px; padding-bottom: 6px; }
+.cat-info-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%; font-size: 9px; font-weight: 700;
+  background: rgba(255,255,255,0.06); color: var(--muted); margin-left: 4px;
+}
+.confidence-chip { font-size: 9px; padding: 2px 7px; border-radius: 50px; font-weight: 700; }
+.review-flag-chip {
+  font-size: 9px; padding: 2px 7px; border-radius: 50px;
+  background: rgba(249,115,22,0.12); color: #f97316; font-weight: 600; cursor: pointer;
 }
 .claim-info-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px;
@@ -3531,187 +3552,120 @@ function filterClaims(status, chipEl) {
 }
 
 function renderClaimCard(c, isAdmin = false) {
-  const statusClass = {
-    'auto_approved': 'status-auto-approved', 'paid': 'status-paid',
-    'pending_review': 'status-pending', 'manual_review': 'status-manual',
-    'rejected': 'status-rejected',
-  }[c.status] || 'status-pending';
-
+  const statusClass = {'auto_approved':'status-auto-approved','paid':'status-paid','pending_review':'status-pending','manual_review':'status-manual','rejected':'status-rejected'}[c.status] || 'status-pending';
   const sc = scoreColor(c.authenticity_score);
   const reviewable = isAdmin && (c.status === 'pending_review' || c.status === 'manual_review');
-
-  // Risk tier badge
-  const riskColors = { LOW: '#22c55e', MEDIUM: '#f59e0b', HIGH: '#f97316', CRITICAL: '#ef4444' };
+  const riskColors = {LOW:'#22c55e',MEDIUM:'#f59e0b',HIGH:'#f97316',CRITICAL:'#ef4444'};
   const riskTier = c.risk_tier || (c.authenticity_score >= 75 ? 'LOW' : c.authenticity_score >= 45 ? 'MEDIUM' : c.authenticity_score >= 20 ? 'HIGH' : 'CRITICAL');
   const riskColor = riskColors[riskTier] || '#999';
-
-  // Fraud validation checks (6 modules)
-  const checks = [
-    { label: 'GPS',      valid: c.gps_valid !== false },
-    { label: 'Shift',    valid: c.shift_valid !== false },
-    { label: 'Weather',  valid: c.weather_cross_valid !== false },
-    { label: 'Velocity', valid: c.velocity_valid !== false },
-    { label: 'Pattern',  valid: c.activity_valid !== false },
-    { label: 'Dedup',    valid: c.cross_source_valid !== false },
-  ];
-
-  // GPS distance display
-  const gpsDistText = c.gps_distance_km != null
-    ? `${c.gps_distance_km.toFixed(1)}km from zone`
-    : '';
-
-  // ML fraud probability
-  const mlText = c.ml_fraud_probability != null
-    ? `ML: ${(c.ml_fraud_probability * 100).toFixed(0)}% risk`
-    : '';
   const confidence = Number.isFinite(Number(c.trigger_confidence_score)) ? Number(c.trigger_confidence_score) : null;
-  const confidenceColor = confidence == null ? 'var(--muted)' : confidence >= 80 ? '#22c55e' : confidence >= 50 ? '#f59e0b' : '#ef4444';
-  const measuredText = c.trigger_measured_value != null
-    ? `${c.trigger_measured_value} ${c.trigger_unit || ''}`.trim()
-    : '—';
-  const thresholdText = c.trigger_threshold_value != null
-    ? `${c.trigger_threshold_value} ${c.trigger_unit || ''}`.trim()
-    : '—';
-  const triggerWindow = c.trigger_detected_at
-    ? `${fmtDateTime(c.trigger_detected_at)}${c.trigger_expires_at ? ' to ' + fmtDateTime(c.trigger_expires_at) : ''}`
-    : '—';
-  const zoneText = c.gps_valid === false
-    ? 'Mismatch'
-    : gpsDistText
-      ? `Matched (${gpsDistText})`
-      : 'Matched';
-  const sourceLog = c.source_log
-    || [c.trigger_source_primary ? `Primary: ${c.trigger_source_primary}` : '', c.trigger_source_secondary ? `Secondary: ${c.trigger_source_secondary}` : '', c.trigger_is_validated === true ? 'Cross-source validation: PASSED' : c.trigger_is_validated === false ? 'Cross-source validation: PENDING' : ''].filter(Boolean).join('\n')
-    || 'Source hierarchy was not captured for this claim.';
-  // Section 10 — Worker-facing UX text (4-state model)
-  const _actState = c.recent_activity_state || (c.recent_activity_valid === false ? 'INELIGIBLE' : 'ELIGIBLE');
-  const _actStateMap = {
-    ELIGIBLE:         { label: '✅ Activity Verified',        color: '#22c55e', text: 'You were marked active before the event — payout processed normally.' },
-    REVIEW_REQUIRED:  { label: '🔍 Under Review',            color: '#f59e0b', text: 'Your payout is under review because activity data is incomplete. You can appeal if you were active during this period.' },
-    INELIGIBLE:       { label: '⛔ Activity Not Verified',   color: '#ef4444', text: 'We could not verify recent work activity. Please appeal if you were active during this period.' },
-    UNKNOWN_ACTIVITY: { label: '⚠️ Activity Unknown',        color: '#94a3b8', text: 'Activity data was not available at payout time. Under manual review.' },
-  };
-  const _actInfo = _actStateMap[_actState] || _actStateMap['UNKNOWN_ACTIVITY'];
-  const recentActivityLabel = _actInfo.label;
-  const recentActivityColor = _actInfo.color;
-  const recentActivityText  = c.recent_activity_reason || _actInfo.text;
-
+  const confLevel = confidence == null ? 'UNSCORED' : confidence >= 80 ? 'HIGH' : confidence >= 50 ? 'MEDIUM' : 'LOW';
+  const confColor = confidence == null ? 'var(--muted)' : confidence >= 80 ? '#22c55e' : confidence >= 50 ? '#f59e0b' : '#ef4444';
+  const checks = [
+    {label:'GPS',valid:c.gps_valid!==false},{label:'Shift',valid:c.shift_valid!==false},
+    {label:'Weather',valid:c.weather_cross_valid!==false},{label:'Velocity',valid:c.velocity_valid!==false},
+    {label:'Pattern',valid:c.activity_valid!==false},{label:'Dedup',valid:c.cross_source_valid!==false},
+  ];
+  const failedChecks = checks.filter(ch => !ch.valid);
+  const gpsDistText = c.gps_distance_km != null ? c.gps_distance_km.toFixed(1)+'km' : '';
+  const mlText = c.ml_fraud_probability != null ? 'ML: '+(c.ml_fraud_probability*100).toFixed(0)+'%' : '';
+  const measuredText = c.trigger_measured_value != null ? (c.trigger_measured_value+' '+(c.trigger_unit||'')).trim() : '\u2014';
+  const thresholdText = c.trigger_threshold_value != null ? (c.trigger_threshold_value+' '+(c.trigger_unit||'')).trim() : '\u2014';
+  const triggerWindow = c.trigger_detected_at ? fmtDateTime(c.trigger_detected_at) : '\u2014';
+  const zoneText = c.gps_valid===false ? 'Mismatch' : gpsDistText ? 'Matched ('+gpsDistText+')' : 'Matched';
+  const payoutRule = c.policy_tier ? fmt(c.payout_amount)+' under '+c.policy_tier : fmt(c.payout_amount);
+  const srcPrimary = c.trigger_source_primary || 'Unknown';
+  const srcLine = srcPrimary+(c.trigger_source_secondary ? ' + '+c.trigger_source_secondary : '')+(c.trigger_is_validated===true ? ' \u00b7 Validated' : '');
+  const sourceLog = c.source_log || [c.trigger_source_primary?'Primary: '+c.trigger_source_primary:'',c.trigger_source_secondary?'Secondary: '+c.trigger_source_secondary:''].filter(Boolean).join('\\n') || 'No source log.';
+  const _actState = c.recent_activity_state || (c.recent_activity_valid===false ? 'INELIGIBLE' : 'ELIGIBLE');
+  const _actMap = {ELIGIBLE:{l:'\u2705 Verified',c:'#22c55e',t:'Active before event.'},REVIEW_REQUIRED:{l:'\ud83d\udd0d Under Review',c:'#f59e0b',t:'Activity data incomplete.'},INELIGIBLE:{l:'\u26d4 Not Verified',c:'#ef4444',t:'Could not verify activity.'},UNKNOWN_ACTIVITY:{l:'\u26a0\ufe0f Unknown',c:'#94a3b8',t:'Activity data unavailable.'}};
+  const _act = _actMap[_actState] || _actMap['UNKNOWN_ACTIVITY'];
   const appealActive = !!(c.appeal_status && c.appeal_status !== 'none');
-  const appealWindowOpen = !isAdmin && !appealActive && ((Date.now() - new Date(c.created_at).getTime()) <= (48 * 60 * 60 * 1000));
-  const payoutRule = c.policy_tier
-    ? `${fmt(c.payout_amount)} under ${c.policy_tier}`
-    : fmt(c.payout_amount);
+  const appealWindowOpen = !isAdmin && !appealActive && ((Date.now()-new Date(c.created_at).getTime())<=172800000);
+  const statusText = c.status==='paid'||c.status==='auto_approved' ? 'Threshold crossed \u2014 payout approved.' : c.status==='pending_review' ? 'Claim under review.' : c.status==='manual_review' ? 'Flagged for manual review.' : c.status==='rejected' ? 'Claim not eligible.' : 'Processing...';
+  const accId = 'acc-'+c.id+'-'+Math.random().toString(36).slice(2,6);
 
   return `
     <div class="claim-card ${c.paid_at ? 'payout-success' : ''}" id="claim-card-${c.id}">
       <div class="flex items-center gap-2" style="margin-bottom:8px;">
-        <div class="list-avatar" style="width:34px;height:34px;font-size:15px;background:var(--card2);">
-          ${triggerIcon(c.trigger_type || '⚡')}
-        </div>
+        <div class="list-avatar" style="width:34px;height:34px;font-size:15px;background:var(--card2);">${triggerIcon(c.trigger_type || '\u26a1')}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:600;">${esc(c.trigger_type || 'Disruption')}</div>
-          <div class="text-xs text-muted">#${esc(c.claim_number)} · ${timeAgo(c.created_at)}</div>
+          <div class="text-xs text-muted">#${esc(c.claim_number)} \u00b7 ${timeAgo(c.created_at)}</div>
         </div>
-        ${c.is_simulated ? '<span style="font-size:9px;padding:2px 7px;border-radius:50px;background:rgba(249,115,22,0.15);color:#f97316;font-weight:700;letter-spacing:.3px;">SIMULATED</span>' : ''}
-        <span class="claim-status-badge ${statusClass}">${c.status.replace(/_/g,' ').toUpperCase()}</span>
+        <div style="display:flex;gap:4px;align-items:center;">
+          ${c.is_simulated ? '<span style="font-size:9px;padding:2px 7px;border-radius:50px;background:rgba(249,115,22,0.15);color:#f97316;font-weight:700;">SIM</span>' : ''}
+          <span class="claim-status-badge ${statusClass}">${c.status.replace(/_/g,' ').toUpperCase()}</span>
+        </div>
       </div>
-
       <div class="claim-info-grid">
         <div>Payout <b class="text-green">${fmt(c.payout_amount)}</b></div>
-        <div>City <b>${esc(c.trigger_city || '—')}</b></div>
+        <div>City <b>${esc(c.trigger_city || '\u2014')}</b></div>
+      </div>
+      <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--muted);">${statusText}</span>
+        <span class="confidence-chip" style="background:${confColor}20;color:${confColor};">${confLevel}</span>
+        ${failedChecks.length ? '<span class="review-flag-chip" onclick="toggleClaimAccordion(\''+accId+'-review\')">' + failedChecks.length + ' flag' + (failedChecks.length > 1 ? 's' : '') + '</span>' : ''}
+      </div>
+      ${c.paid_at ? '<div class="text-xs text-green" style="margin-top:6px;display:flex;align-items:center;gap:6px;"><span>'+(c.payout_gateway==='razorpay'?'\ud83d\udfe2':'\ud83d\udfe1')+'</span><span>Paid '+timeAgo(c.paid_at)+'</span><span style="padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;'+(c.payout_gateway==='razorpay'?'background:rgba(56,132,244,0.15);color:#3884f4;':'background:rgba(255,255,255,0.08);color:var(--muted);')+'">'+(c.payout_gateway==='razorpay'?'RAZORPAY':'MOCK')+'</span></div>' : ''}
+
+      <div style="margin-top:10px;">
+        <div class="claim-accordion-header" onclick="toggleClaimAccordion('${accId}-why')">
+          <span>\ud83d\udccb Why this happened <span class="cat-info-icon">i</span></span>
+          <span class="acc-chevron">\u25b6</span>
+        </div>
+        <div class="claim-accordion-body" id="${accId}-why">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;margin-bottom:8px;">
+            <div><div style="color:var(--muted);text-transform:uppercase;font-size:9px;">Measured</div><div style="font-weight:600;">${esc(measuredText)}</div></div>
+            <div><div style="color:var(--muted);text-transform:uppercase;font-size:9px;">Threshold</div><div style="font-weight:600;">${esc(thresholdText)}</div></div>
+            <div><div style="color:var(--muted);text-transform:uppercase;font-size:9px;">Zone Match</div><div style="font-weight:600;color:${c.gps_valid===false?'#ef4444':'#22c55e'};">${esc(zoneText)}</div></div>
+            <div><div style="color:var(--muted);text-transform:uppercase;font-size:9px;">Payout Rule</div><div style="font-weight:600;">${esc(payoutRule)}</div></div>
+          </div>
+          <div style="font-size:10px;color:var(--muted);line-height:1.45;"><b style="color:var(--text);">Event:</b> ${esc(triggerWindow)}<br><b style="color:var(--text);">Source:</b> ${esc(srcLine)}</div>
+        </div>
+
+        <div class="claim-accordion-header" onclick="toggleClaimAccordion('${accId}-trust')">
+          <span>\ud83d\udee1\ufe0f How we verified <span class="cat-info-icon">i</span></span>
+          <span class="acc-chevron">\u25b6</span>
+        </div>
+        <div class="claim-accordion-body" id="${accId}-trust">
+          <div style="font-size:11px;line-height:1.6;">
+            <div><b>Confidence:</b> <span style="color:${confColor};font-weight:600;">${confidence!=null?confidence.toFixed(0)+'%':'N/A'}</span> \u00b7 <span style="color:${sc};font-weight:600;">${fmtScore(c.authenticity_score)} Auth</span></div>
+            <div><b>Activity:</b> <span style="color:${_act.c};font-weight:600;">${esc(_act.l)}</span> \u00b7 ${esc(c.recent_activity_reason||_act.t)}</div>
+            <div><b>Risk:</b> <span style="color:${riskColor};font-weight:600;">${riskTier}</span>${mlText?' \u00b7 '+mlText:''}</div>
+          </div>
+        </div>
+
+        <div class="claim-accordion-header" onclick="toggleClaimAccordion('${accId}-review')">
+          <span>\ud83d\udd0d Review details <span class="cat-info-icon">i</span></span>
+          <span class="acc-chevron">\u25b6</span>
+        </div>
+        <div class="claim-accordion-body" id="${accId}-review">
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
+            ${checks.map(ch => '<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:'+(ch.valid?'rgba(34,197,94,0.12)':'rgba(239,68,68,0.15)')+';color:'+(ch.valid?'#22c55e':'#ef4444')+';font-weight:500;">'+(ch.valid?'\u2713':'\u2717')+' '+ch.label+'</span>').join('')}
+          </div>
+          ${gpsDistText ? '<div class="text-xs text-muted" style="margin-bottom:4px;">\ud83d\udccd '+gpsDistText+' from zone</div>' : ''}
+          ${c.fraud_flags ? '<div style="font-size:10px;color:var(--yellow);margin-bottom:6px;">\u26a0\ufe0f '+esc(c.fraud_flags)+'</div>' : ''}
+          <div style="font-family:monospace;font-size:10px;color:var(--muted);line-height:1.5;white-space:pre-wrap;background:#000;padding:6px;border-radius:4px;max-height:120px;overflow-y:auto;">${esc(sourceLog)}</div>
+          ${c.payment_ref ? '<div class="text-xs text-muted" style="margin-top:6px;">Ref: '+esc(c.payment_ref)+'</div>' : ''}
+        </div>
+
+        ${c.is_simulated ? '<div class="claim-accordion-header" onclick="toggleClaimAccordion(\''+accId+'-demo\')"><span>\ud83e\uddea Demo scenario <span class="cat-info-icon">i</span></span><span class="acc-chevron">\u25b6</span></div><div class="claim-accordion-body" id="'+accId+'-demo"><div style="font-size:10px;color:#f97316;">This claim was generated from a <b>simulated trigger</b>. In production, real data triggers payouts autonomously.</div></div>' : ''}
       </div>
 
-      <div style="margin-top:6px;">
-        <div class="flex justify-between text-xs" style="margin-bottom:3px;">
-          <span class="text-muted">Auth Score</span>
-          <span style="color:${sc};font-weight:700;">${fmtScore(c.authenticity_score)}</span>
-        </div>
-        <div class="score-bar">
-          <div class="score-fill" style="width:${c.authenticity_score}%;background:${sc}"></div>
-        </div>
-        <div class="flex justify-between text-xs" style="margin-top:3px;">
-          <span style="color:${riskColor};font-weight:600;font-size:10px;letter-spacing:0.5px;">${riskTier} RISK</span>
-          <span class="text-muted" style="font-size:10px;">${mlText}</span>
-        </div>
-      </div>
-
-      <!-- Fraud Validation Checks (6 modules) -->
-      <div style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap;">
-        ${checks.map(ch => `<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${ch.valid ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.15)'};color:${ch.valid ? '#22c55e' : '#ef4444'};font-weight:500;">${ch.valid ? '✓' : '✗'} ${ch.label}</span>`).join('')}
-      </div>
-
-      ${gpsDistText ? `<div class="text-xs text-muted" style="margin-top:4px;">📍 ${gpsDistText}</div>` : ''}
-
-      <!-- Explainability & Trust Module -->
-      <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px; padding:10px; margin-top:10px; margin-bottom:6px;">
-        <div style="font-size:11px; font-weight:700; color:var(--text); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
-           <span>Payout Explainability</span>
-           <span style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(255,255,255,0.1); color:${confidenceColor}">${confidence == null ? 'Unscored' : confidence.toFixed(0) + '% Trigger Confidence'}</span>
-        </div>
-
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;font-size:10px;margin-bottom:8px;">
-          <div><div style="color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">Measured</div><div style="font-weight:600;">${esc(measuredText)}</div></div>
-          <div><div style="color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">Threshold</div><div style="font-weight:600;">${esc(thresholdText)}</div></div>
-          <div><div style="color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">Zone Match</div><div style="font-weight:600;color:${c.gps_valid === false ? '#ef4444' : '#22c55e'};">${esc(zoneText)}</div></div>
-          <div><div style="color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">Payout Rule</div><div style="font-weight:600;">${esc(payoutRule)}</div></div>
-        </div>
-
-        <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.45;">
-          <b style="color:var(--text);">Event Window:</b> ${esc(triggerWindow)}<br>
-          <b style="color:var(--text);">Sources:</b> ${esc(c.trigger_source_primary || 'Unknown')}${c.trigger_source_secondary ? ' + ' + esc(c.trigger_source_secondary) : ''}${c.trigger_is_validated === true ? ' · validated' : c.trigger_is_validated === false ? ' · pending validation' : ''}
-        </div>
-
-        <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.45;">
-          <b style="color:var(--text);">Recent Activity Gate:</b>
-          <span style="color:${recentActivityColor};font-weight:700;">${esc(recentActivityLabel)}</span>
-          Â· ${esc(recentActivityText)}
-        </div>
-        <div style="font-family:monospace; font-size:10px; color:var(--muted); line-height:1.5; white-space:pre-wrap; background:#000; padding:6px; border-radius:4px;">${esc(sourceLog)}</div>
-
-        ${c.appeal_reason ? `<div style="margin-top:8px;font-size:10px;line-height:1.45;color:var(--muted);"><b style="color:var(--text);">Appeal Note:</b> ${esc(c.appeal_reason)}</div>` : ''}
-        ${appealWindowOpen ? 
-          `<button style="width:100%; margin-top:8px; background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.2); padding:6px; border-radius:4px; font-size:10px; font-weight:600; cursor:pointer;" onclick="openAppealSheet(${c.id})">Request Data Review (48h Window)</button>` 
-          : ''}
-        ${appealActive ? 
-          `<div style="margin-top:8px; font-size:10px; color:#f59e0b; font-weight:600; text-transform:uppercase; display:flex; align-items:center; gap:4px;">
-             <span class="spinner" style="width:10px;height:10px;border-width:1px;"></span> Appeal Status: ${c.appeal_status.replace('_', ' ')}
-           </div>` 
-          : ''}
-      </div>
-
-      ${c.paid_at ? `<div class="text-xs text-green" style="margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-        <span>${c.payout_gateway === 'razorpay' ? '🟢' : c.payout_status === 'settled' ? '🟢' : c.payout_status === 'failed' ? '🔴' : '🟡'}</span>
-        <span>Paid ${timeAgo(c.paid_at)}</span>
-        <span style="padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:0.3px;${c.payout_gateway === 'razorpay' ? 'background:rgba(56,132,244,0.15);color:#3884f4;' : 'background:rgba(255,255,255,0.08);color:var(--muted);'}">${c.payout_gateway === 'razorpay' ? 'RAZORPAY TEST' : 'MOCK'}</span>
-        ${c.payout_reference ? `<span style="font-family:monospace;font-size:10px;color:var(--muted);">${esc(c.payout_reference_label || 'Reference')}: ${esc(c.payout_reference)}</span>` : `<span style="font-size:10px;color:var(--muted);">${esc(c.payment_ref || '')}</span>`}
-      </div>` : ''}
-
-      ${c.paid_at ? signalBadgeRow({
-        confidence,
-        sourcePrimary: c.trigger_source_primary,
-        sourceSecondary: c.trigger_source_secondary,
-        sourceLog,
-        confidenceLabel: 'Payout Evidence',
-      }) : ''}
-      ${c.payout_note ? `<div class="text-xs text-muted" style="margin-top:4px;line-height:1.45;">${esc(c.payout_note)}</div>` : ''}
-
-      ${c.fraud_flags ? `<div class="claim-flags">${esc(c.fraud_flags)}</div>` : ''}
-
-      ${c.is_simulated
-        ? `<div style="margin-top:8px;padding:6px 10px;border-radius:8px;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.15);font-size:10px;line-height:1.5;color:#f97316;font-style:italic;">
-            ⚠️ This claim was generated from a <b>simulated trigger</b>. In production, real weather/AQI data triggers payouts autonomously every 15 min.
-           </div>`
-        : (c.trigger_type ? `<div style="margin-top:8px;padding:6px 10px;border-radius:8px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.12);font-size:10px;line-height:1.5;color:#22c55e;font-style:italic;">
-            ✅ Generated from a <b>live disruption</b> detected via parametric monitoring. Claim disbursement references may still be test/demo references unless a real payout rail is enabled.
-           </div>` : '')}
-
-      ${reviewable ? `
-        <div class="flex gap-2" style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
-          <button class="btn btn-success btn-sm" style="flex:1;padding:7px 12px;font-size:12px;" onclick="adminApproveClaim(${c.id})">Approve</button>
-          <button class="btn btn-danger btn-sm" style="flex:1;padding:7px 12px;font-size:12px;" onclick="adminRejectClaim(${c.id})">Deny</button>
-        </div>` : ''}
+      ${appealWindowOpen ? '<button style="width:100%;margin-top:10px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);padding:7px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;" onclick="openAppealSheet('+c.id+')">Request Data Review (48h Window)</button>' : ''}
+      ${appealActive ? '<div style="margin-top:8px;font-size:10px;color:#f59e0b;font-weight:600;display:flex;align-items:center;gap:4px;"><span class="spinner" style="width:10px;height:10px;border-width:1px;"></span> Appeal: '+c.appeal_status.replace('_',' ')+'</div>' : ''}
+      ${reviewable ? '<div class="flex gap-2" style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;"><button class="btn btn-success btn-sm" style="flex:1;" onclick="adminApproveClaim('+c.id+')">Approve</button><button class="btn btn-danger btn-sm" style="flex:1;" onclick="adminRejectClaim('+c.id+')">Deny</button></div>' : ''}
     </div>
   `;
+}
+
+function toggleClaimAccordion(id) {
+  const body = document.getElementById(id);
+  if (!body) return;
+  const header = body.previousElementSibling;
+  body.classList.toggle('open');
+  if (header) header.classList.toggle('open');
 }
 
 function filterAdminClaims(mode, chipEl) {
