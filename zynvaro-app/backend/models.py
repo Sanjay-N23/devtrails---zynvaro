@@ -155,6 +155,15 @@ class TriggerEvent(Base):
     expires_at = Column(DateTime, nullable=True)
     is_simulated = Column(Boolean, default=False)   # True for demo-simulated triggers
 
+    # Demo scenario audit fields (Spec K.176-192)
+    source_type = Column(String(30), default="LIVE")           # "LIVE" or "DEMO_SIMULATION"
+    scenario_id = Column(String(40), nullable=True, index=True) # Idempotency key for demo runs
+    scenario_name = Column(String(100), nullable=True)          # e.g. "Heavy Rainfall in Bangalore"
+    scenario_created_by = Column(Integer, ForeignKey("workers.id"), nullable=True)
+    scenario_created_by_role = Column(String(30), nullable=True)
+    pipeline_run_id = Column(String(40), nullable=True)        # Links trigger -> claims batch
+    original_environment = Column(String(20), nullable=True)   # Environment at scenario run time
+
     claims = relationship("Claim", back_populates="trigger_event")
 
 # ─────────────────────────────────────────────────────────────────

@@ -46,6 +46,8 @@ class SimulateRequest(BaseModel):
     trigger_type: str
     city: str
     bypass_gate: bool = False
+    scenario_id: Optional[str] = None    # Idempotency key — same ID = same result
+    scenario_name: Optional[str] = None  # Display name for audit (e.g. "Heavy Rainfall in Bangalore")
 
 class LiveCheckResponse(BaseModel):
     city: str
@@ -372,13 +374,50 @@ async def simulate_trigger_event(
             detail=f"Invalid city '{req.city}'. Must be one of: {', '.join(valid_cities)}",
         )
 
+    # ── Production environment gate (Spec A.15, M.209) ──────────────
+    import os
+    env = os.getenv("ENVIRONMENT", "development").lower()
+    mock_payments = os.getenv("MOCK_PAYMENTS", "0")
+    if env == "production" and mock_payments != "1":
+        raise HTTPException(
+            status_code=403,
+            detail="Simulate Trigger is disabled in production environments."
+        )
+
+    # ── Idempotency: resolve existing scenario if same scenario_id (Spec N.221) ──
+    import uuid
+    pipeline_run_id = f"pipeline_{uuid.uuid4().hex[:10]}"
+    scenario_id = req.scenario_id or uuid.uuid4().hex[:12]
+    scenario_name = req.scenario_name or f"{req.trigger_type} in {req.city}"
+
+    if req.scenario_id:
+        existing = db.query(TriggerEvent).filter(
+            TriggerEvent.scenario_id == req.scenario_id
+        ).first()
+        if existing:
+            return {
+                "message": f"Scenario '{scenario_name}' already executed (idempotent replay).",
+                "trigger_event_id": existing.id,
+                "measured_value": existing.measured_value,
+                "unit": existing.unit,
+                "description": existing.description,
+                "is_simulated": True,
+                "confidence_score": existing.confidence_score or 100.0,
+                "source_log": existing.source_log,
+                "current_reading": None,
+                "requester_eligible": True,
+                "requester_effective_city": existing.city,
+                "requester_location_source": "scenario_replay",
+                "requester_eligibility_reason": "Returning existing scenario — idempotent.",
+            }
+
     requester_gate = _worker_trigger_eligibility(
         current_worker,
         req.city,
         req.trigger_type,
         platform=current_worker.platform,
     )
-    
+
     t = simulate_trigger(req.trigger_type, req.city)
 
     # Fetch current real reading for comparison (what-if framing)
@@ -437,6 +476,14 @@ async def simulate_trigger_event(
         expires_at=datetime.utcnow() + timedelta(hours=6),
         trigger_lat=_sim_geo["lat"] if _sim_geo else None,
         trigger_lng=_sim_geo["lng"] if _sim_geo else None,
+        # Scenario-level audit fields (Spec D.58-67, K.183)
+        source_type="DEMO_SIMULATION",
+        scenario_id=scenario_id,
+        scenario_name=scenario_name,
+        scenario_created_by=current_worker.id,
+        scenario_created_by_role="admin" if getattr(current_worker, "is_admin", False) else "worker",
+        pipeline_run_id=pipeline_run_id,
+        original_environment=env,
     )
     db.add(event)
     db.commit()
