@@ -27,14 +27,12 @@ def generate_policy_number() -> str:
 
 def is_demo_mode_active() -> bool:
     """Check if the environment allows payment bypass."""
-    # Strict fallback ensuring it never permits bypass in formal "production"
     env = os.getenv("ENVIRONMENT", "development").lower()
+    # Hard block: only real production with no mock override is blocked
     if env == "production" and os.getenv("MOCK_PAYMENTS") != "1":
         return False
-    # Normal heuristic: either demo env or explicit mock override
-    if env == "demo" or os.getenv("MOCK_PAYMENTS") == "1":
-        return True
-    return False
+    # Everything else: development, demo, staging, or explicit MOCK_PAYMENTS=1 are all allowed
+    return True
 
 def complete_demo_payment_bypass(
     db: Session,
@@ -95,23 +93,44 @@ def complete_demo_payment_bypass(
                 "original_provider_error": original_provider_error,
             }
 
-    # Atomically cancel existing active policies safely before issuance if NOT renewing.
-    # If renewing, verify we have an active policy to extend.
+    # Renewal: try to extend active policy, fall back to fresh creation if expired/missing
     if is_renewal:
         policy = db.query(Policy).filter(
             Policy.worker_id == worker.id, 
             Policy.status == PolicyStatus.ACTIVE
         ).first()
-        if not policy:
-            raise HTTPException(status_code=404, detail="No active policy found to renew via Demo Bypass.")
-        
-        policy.end_date = (policy.end_date or datetime.utcnow()) + timedelta(days=7)
-        policy.weekly_premium = premium
-        policy.zone_loading = bkd["zone_loading_inr"]
-        policy.seasonal_loading = bkd["seasonal_loading_inr"]
-        policy.claim_loading = bkd["claim_loading_inr"]
-        policy.streak_discount = abs(bkd["streak_discount_inr"])
-        db.flush()
+        if policy:
+            # Happy path: extend the existing active policy by 7 days
+            policy.end_date = (policy.end_date or datetime.utcnow()) + timedelta(days=7)
+            policy.weekly_premium = premium
+            policy.zone_loading = bkd["zone_loading_inr"]
+            policy.seasonal_loading = bkd["seasonal_loading_inr"]
+            policy.claim_loading = bkd["claim_loading_inr"]
+            policy.streak_discount = abs(bkd["streak_discount_inr"])
+            policy.is_renewal = True
+            db.flush()
+        else:
+            # Fallback: no active policy to renew — create a fresh one instead
+            # This handles the case where the policy expired between UI load and button tap
+            policy = Policy(
+                worker_id=worker.id,
+                policy_number=generate_policy_number(),
+                tier=tier,
+                status=PolicyStatus.ACTIVE,
+                weekly_premium=premium,
+                base_premium=pricing["base_premium"],
+                max_daily_payout=cfg["max_daily"],
+                max_weekly_payout=cfg["max_weekly"],
+                zone_loading=bkd["zone_loading_inr"],
+                seasonal_loading=bkd["seasonal_loading_inr"],
+                claim_loading=bkd["claim_loading_inr"],
+                streak_discount=abs(bkd["streak_discount_inr"]),
+                start_date=datetime.utcnow(),
+                end_date=datetime.utcnow() + timedelta(days=7),
+                is_renewal=True,
+            )
+            db.add(policy)
+            db.flush()
     else:
         # Prevent duplicate cross-activation -> Clean up active first
         prior_active = db.query(Policy).filter(

@@ -2718,37 +2718,45 @@ async function activatePolicy() {
         window.bypassDemoPayment = async function() {
             bypassBtn.classList.add('hidden');
             rzp.close(); // Close Razorpay
-            // Simulate success
-            showPaymentSuccessModal({
-                paymentId: 'pay_DEMO_BYPASS_' + Date.now().toString().slice(-6),
-                amount: order.weekly_premium,
-                tierName: tierName,
-                policyNumber: 'POL-BYPASS-' + Math.floor(1000 + Math.random() * 9000),
-            });
             hidePremiumBreakdown();
-            const profile = await api('/auth/me');
-            currentUser = profile;
-            localStorage.setItem('zynvaro_user', JSON.stringify(profile));
-            // Instead of verify-payment which checks real RZP signature, we directly push the state here via backend override IF demo
+
+            // Show immediate loading toast
+            toast('Completing demo payment...', 'info');
+
             try {
-                // Trigger the backend demo bypass flow to create policy and DEMO_SETTLED transaction
+                // 1. First hit backend to actually create/activate the policy
                 const bypassRes = await api('/policies/demo-bypass', {
                   method: 'POST',
                   body: JSON.stringify({ 
                       tier: tierName,
-                      order_id: order.order_id,
+                      order_id: order.order_id || 'MOCK_ORDER',
                       source_screen: 'demo_floating_button',
                       original_provider_error: 'Bypassed by demo user',
                       is_renewal: false
                   })
                 });
-                
-                // Use the backend-generated policy number in the alert
-                document.getElementById('pay-policy').textContent = bypassRes.policy_number || 'POL-BYPASS-MOCK';
+
+                // 2. Refresh user profile from server
+                const profile = await api('/auth/me');
+                currentUser = profile;
+                localStorage.setItem('zynvaro_user', JSON.stringify(profile));
+
+                // 3. Show success modal with real backend-confirmed policy number
+                showPaymentSuccessModal({
+                    paymentId: 'pay_DEMO_BYPASS_' + Date.now().toString().slice(-6),
+                    amount: bypassRes.amount || order.weekly_premium,
+                    tierName: tierName,
+                    policyNumber: bypassRes.policy_number || 'POL-BYPASS-MOCK',
+                });
+
+                // 4. Reload policy page so it shows the newly-active policy
+                await loadPolicyPage();
+
             } catch(e) {
-                // If it fails, silent fail and reload
+                toast('Demo bypass encountered an issue: ' + (e.message || 'unknown'), 'error');
+                // Fallback: still try to reload policy page
+                await loadPolicyPage();
             }
-            loadPolicyPage();
         };
     }
 
@@ -2897,29 +2905,37 @@ async function renewPolicy() {
         bypassBtn.classList.remove('hidden');
         window.bypassDemoPayment = async function() {
             bypassBtn.classList.add('hidden');
-            rzp.close(); // Close Razorpay
-            // Simulate success
-            showPaymentSuccessModal({
-                paymentId: 'renew_DEMO_BYPASS_' + Date.now().toString().slice(-6),
-                amount: order.weekly_premium,
-                tierName: tierName + ' (Renewed)',
-                policyNumber: 'POL-BYPASS-' + Math.floor(1000 + Math.random() * 9000),
-            });
+            rzp.close();
             hidePremiumBreakdown();
+            toast('Completing demo renewal...', 'info');
             try {
-                // Trigger the backend demo bypass flow to renew policy and log DEMO_SETTLED transaction
+                // 1. Hit backend first to actually extend policy and log DEMO_SETTLED
                 const bypassRes = await api('/policies/demo-bypass', {
                   method: 'POST',
                   body: JSON.stringify({ 
                       tier: tierName,
-                      order_id: order.order_id,
+                      order_id: order.order_id || 'MOCK_ORDER',
                       source_screen: 'demo_floating_button',
                       original_provider_error: 'Bypassed by demo user',
                       is_renewal: true
                   })
                 });
-            } catch(e) {}
-            loadPolicyPage();
+
+                // 2. Show success modal with confirmed policy number
+                showPaymentSuccessModal({
+                    paymentId: 'renew_DEMO_BYPASS_' + Date.now().toString().slice(-6),
+                    amount: bypassRes.amount || order.weekly_premium,
+                    tierName: tierName + ' (Renewed)',
+                    policyNumber: bypassRes.policy_number || 'POL-BYPASS-MOCK',
+                });
+
+                // 3. Reload so active policy banner updates
+                await loadPolicyPage();
+
+            } catch(e) {
+                toast('Demo renewal issue: ' + (e.message || 'unknown'), 'error');
+                await loadPolicyPage();
+            }
         };
     }
     
