@@ -28,6 +28,15 @@ def run_sqlite_startup_migrations():
         "workers": {
             "last_activity_source": "ALTER TABLE workers ADD COLUMN last_activity_source VARCHAR(30)",
         },
+        # Policies columns added after initial schema freeze
+        "policies": {
+            "is_renewal": "ALTER TABLE policies ADD COLUMN is_renewal BOOLEAN DEFAULT 0",
+            "claim_eligible_at": "ALTER TABLE policies ADD COLUMN claim_eligible_at DATETIME",
+            "waiting_rule_type": "ALTER TABLE policies ADD COLUMN waiting_rule_type VARCHAR(30) DEFAULT '24h'",
+            "waiting_rule_version": "ALTER TABLE policies ADD COLUMN waiting_rule_version VARCHAR(20) DEFAULT 'v1'",
+            "previous_policy_id": "ALTER TABLE policies ADD COLUMN previous_policy_id INTEGER",
+            "previous_policy_end": "ALTER TABLE policies ADD COLUMN previous_policy_end DATETIME",
+        },
         "trigger_events": {
             "confidence_score": "ALTER TABLE trigger_events ADD COLUMN confidence_score FLOAT DEFAULT 100.0",
             "source_log": "ALTER TABLE trigger_events ADD COLUMN source_log TEXT",
