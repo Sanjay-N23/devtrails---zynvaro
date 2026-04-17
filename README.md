@@ -1091,6 +1091,16 @@ The backend auto-seeds on first start:
 
 ---
 
+## 🧪 Hackathon Demo Overrides
+
+To allow judges to smoothly evaluate the platform without waiting 24 hours or traveling across India, we've built **Demo Overrides** directly into the UI (strictly gated to non-production environments):
+
+1. **Payment Bypass:** The Razorpay test-mode integration features a floating **"✅ Simulate Payment Success"** button. This intercepts the payment gateway during Activation and Renewal flows and forces a successful `MOCK_ORDER` transaction, simulating instant end-to-end receipt generation.
+2. **Cooling-Off Waiver:** Zynvaro enforces a mandatory 24-hour waiting period on new policies to prevent fraud. When simulating a trigger, tick **"🔔 Cooling-off WAIVED"** to bypass this and immediately qualify a newly purchased policy for a payout.
+3. **Location (GPS) Waiver:** The fraud engine calculates the distance between the simulated trigger and the worker's device GPS. If > 25km, automation is blocked. Judges testing the app from outside the trigger city should tick **"📍 Location WAIVED"** to simulate being within the disaster radius and experience the zero-touch claim processing.
+
+---
+
 ## 👥 Team AeroFyta
 
 <div align="center">
