@@ -1,5 +1,5 @@
 // Zynvaro Service Worker — PWA offline support
-const CACHE = 'zynvaro-v11'; // BUMP VERSION ON EVERY DEPLOY — Phase 3 SOAR
+const CACHE = 'zynvaro-v12'; // BUMP VERSION ON EVERY DEPLOY — Phase 3 SOAR
 const STATIC = ['/app', '/static/manifest.json', '/static/Zynvaro-bg-removed.png'];
 
 self.addEventListener('install', e => {

@@ -875,7 +875,7 @@ body {
       </div>
     </div>
     <div class="header-actions">
-      <button class="header-icon-btn" onclick="loadDashboard()" title="Refresh" aria-label="Refresh dashboard"><i data-lucide="refresh-cw"></i></button>
+      <button class="header-icon-btn" onclick="refreshCurrentPage(this)" title="Refresh" aria-label="Refresh current page"><i data-lucide="refresh-cw"></i></button>
       <div style="position:relative;">
         <button id="nav-avatar" onclick="toggleProfileMenu()" title="Profile" aria-label="Profile menu">R</button>
         <div id="profile-menu" class="hidden" style="position:absolute;right:0;top:50px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px;min-width:200px;z-index:500;box-shadow:0 8px 32px rgba(0,0,0,.5);">
@@ -1060,7 +1060,7 @@ body {
     <div class="card">
       <div class="section-hd">
         Your City Alerts
-        <button class="btn btn-ghost btn-sm" onclick="loadTriggers()" style="padding:7px 14px;font-size:12px;">Refresh</button>
+        <button class="btn btn-ghost btn-sm" onclick="refreshDashboardAlerts(this)" style="padding:7px 14px;font-size:12px;">Refresh</button>
       </div>
       <div id="dash-trigger-feed">
         <p class="text-muted text-sm">Loading your city alert history...</p>
@@ -1173,6 +1173,8 @@ body {
       <button id="btn-simulate-trigger" class="btn btn-primary btn-full" onclick="simulateTrigger()">
         ⚡ Simulate Threshold Crossing
       </button>
+
+      <div id="sim-demo-override" style="display:none;margin-top:10px;"></div>
 
       <!-- Cooling-off bypass for demo/judge use only -->
       <div id="cooling-off-demo-toggle" style="margin-top:10px;padding:8px 10px;border-radius:8px;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.2);">
@@ -1872,6 +1874,7 @@ function showApp() {
           loadLiveConditions();
           loadTriggerLiveStatus();
           loadTriggerEvents();
+          updateSimComparison();
         }
       }).catch(() => {});  // Silent — GPS is optional
     }, () => {}, { timeout: 5000, maximumAge: 300000 });
@@ -1896,12 +1899,88 @@ function navTo(page) {
 
   if (page === 'dashboard') loadDashboard();
   if (page === 'policy')    loadPolicyPage();
-  if (page === 'triggers')  { syncTriggerPageContext(); loadLiveConditions(); loadTriggerTypes(); loadTriggerLiveStatus(); loadTriggerEvents(); }
+  if (page === 'triggers')  { syncTriggerPageContext(); loadLiveConditions(); loadTriggerTypes(); loadTriggerLiveStatus(); loadTriggerEvents(); updateSimComparison(); }
   if (page === 'claims')    loadClaimsPage();
   if (page === 'admin')     loadAdminPage();
   if (page === 'cases')     loadCasesPage();
   // Refresh Lucide SVG icons after DOM update
   setTimeout(refreshIcons, 150);
+}
+
+function activePageName() {
+  const activePage = document.querySelector('.page.active');
+  return activePage?.id?.replace('page-', '') || 'dashboard';
+}
+
+function setButtonRefreshing(button, isRefreshing, idleHtml = null) {
+  if (!button) return;
+  if (button.dataset.originalHtml == null) {
+    button.dataset.originalHtml = button.innerHTML;
+  }
+  const originalHtml = idleHtml || button.dataset.originalHtml || button.innerHTML;
+  button.disabled = !!isRefreshing;
+  button.style.opacity = isRefreshing ? '0.72' : '';
+  button.style.pointerEvents = isRefreshing ? 'none' : '';
+  button.innerHTML = isRefreshing ? 'Refreshing...' : originalHtml;
+}
+
+async function refreshDashboardAlerts(button) {
+  setButtonRefreshing(button, true);
+  const feed = document.getElementById('dash-trigger-feed');
+  if (feed) {
+    feed.innerHTML = `<p class="text-muted text-sm" style="padding:8px 0;">Refreshing alerts for ${esc(currentWorkerCity())}...</p>`;
+  }
+  try {
+    await loadTriggers();
+    toast(`City alerts refreshed for ${currentWorkerCity()}`, 'success');
+  } catch (e) {
+    console.error('[refreshDashboardAlerts]', e);
+    toast('Failed to refresh city alerts', 'error');
+  } finally {
+    setButtonRefreshing(button, false);
+  }
+}
+
+async function refreshCurrentPage(button) {
+  const page = activePageName();
+  setButtonRefreshing(button, true, '<i data-lucide="refresh-cw"></i>');
+
+  try {
+    if (page === 'dashboard') {
+      await Promise.allSettled([
+        loadDashboard(),
+        loadTriggers(),
+        loadDashLiveConditions(),
+      ]);
+    } else if (page === 'policy') {
+      await loadPolicyPage();
+    } else if (page === 'triggers') {
+      syncTriggerPageContext();
+      await Promise.allSettled([
+        loadLiveConditions(),
+        loadTriggerLiveStatus(),
+        loadTriggerEvents(),
+        updateSimComparison(),
+      ]);
+    } else if (page === 'claims') {
+      await loadClaimsPage();
+    } else if (page === 'admin') {
+      await loadAdminPage();
+    } else if (page === 'cases') {
+      await loadCasesPage();
+    } else {
+      await loadDashboard();
+    }
+
+    refreshIcons();
+    toast(`${page.charAt(0).toUpperCase() + page.slice(1)} refreshed`, 'success');
+  } catch (e) {
+    console.error('[refreshCurrentPage]', page, e);
+    toast(`Failed to refresh ${page}`, 'error');
+  } finally {
+    setButtonRefreshing(button, false, '<i data-lucide="refresh-cw"></i>');
+    refreshIcons();
+  }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -3072,6 +3151,138 @@ const SIM_THRESHOLDS = {
 };
 
 let _lastSimConditions = null;
+let _pendingJudgeSimulation = null;
+
+function setSimToggleState(toggleId, labelId, checked, onText, offText) {
+  const toggle = document.getElementById(toggleId);
+  if (toggle) toggle.checked = checked;
+  const label = document.getElementById(labelId);
+  if (label) label.textContent = checked ? onText : offText;
+}
+
+async function ensureSimComparisonLoaded(triggerType, city) {
+  let state = getSimComparisonState(triggerType, city);
+  if (state) return state;
+  try {
+    const data = await api(conditionsApiPath(city, currentWorkerPlatform()));
+    _lastSimConditions = data;
+    return getSimComparisonState(triggerType, city, data);
+  } catch (_) {
+    return null;
+  }
+}
+
+function getSimComparisonState(triggerType, city, data = _lastSimConditions) {
+  if (!data) return null;
+  const cfg = SIM_VALUES[triggerType] || { sim: 100, unit: '', field: '' };
+  const threshold = SIM_THRESHOLDS[triggerType] || 100;
+
+  let current = 0;
+  let sourceLabel = 'API';
+  const field = cfg.field;
+  if (field === 'rain') {
+    current = Number(data.weather?.rain_24h_est_mm || 0);
+    sourceLabel = data.sources?.weather || 'API';
+  } else if (field === 'temp') {
+    current = Number(data.weather?.temperature_c || 0);
+    sourceLabel = data.sources?.weather || 'API';
+  } else if (field === 'aqi') {
+    current = Number(data.aqi?.value || 0);
+    sourceLabel = data.sources?.aqi || 'API';
+  } else if (field === 'platform') {
+    current = data.platform_status?.status === 'DOWN' ? 20 : 0;
+    sourceLabel = data.sources?.platform || 'API';
+  } else if (field === 'civil') {
+    current = data.civil_disruption?.active ? 6 : 0;
+    sourceLabel = data.sources?.civil || 'API';
+  }
+
+  const gap = threshold - current;
+  const pct = threshold > 0 ? Math.min(100, Math.max(0, (current / threshold) * 100)) : 0;
+  return {
+    triggerType,
+    city,
+    current,
+    threshold,
+    simulated: cfg.sim,
+    unit: cfg.unit,
+    sourceLabel,
+    pct,
+    gap,
+    isBelowThreshold: gap > 0,
+    isLive: String(sourceLabel || '').toLowerCase().includes('live'),
+  };
+}
+
+function hideSimDemoOverride() {
+  const panel = document.getElementById('sim-demo-override');
+  if (!panel) return;
+  panel.style.display = 'none';
+  panel.innerHTML = '';
+  _pendingJudgeSimulation = null;
+}
+
+function runPendingJudgeSimulation() {
+  if (!_pendingJudgeSimulation) return;
+  toast('Judge override enabled. Running the synthetic insurance workflow...', 'info');
+  if (_pendingJudgeSimulation.enableCoolingOffBypass) {
+    _simulatedBypassConfirmed = true;
+    setSimToggleState(
+      'bypass-cooling-off',
+      'cooling-off-label',
+      true,
+      '🔔 Cooling-off WAIVED (demo mode)',
+      '🛡️ Cooling-off active (24h gate on for new policies)'
+    );
+  }
+  if (_pendingJudgeSimulation.enableLocationBypass) {
+    _simulatedLocationBypass = true;
+    setSimToggleState(
+      'bypass-location',
+      'location-bypass-label',
+      true,
+      '📍 Location WAIVED (demo mode)',
+      '📍 GPS Authenticity active (max 25km)'
+    );
+  }
+  simulateTrigger(true);
+}
+
+function showSimDemoOverride(state, extraNote = '', options = {}) {
+  const panel = document.getElementById('sim-demo-override');
+  if (!panel || !state) return;
+  const actionLabel = options.actionLabel || '⚠️ Bypass Live Conditions And Show Full Insurance Workflow';
+  const detailText = options.detailText || `
+        For judges, you can still push the signal synthetically to
+        <span style="color:var(--red);font-weight:700;">${state.simulated} ${esc(state.unit)}</span>
+        and watch the zero-touch claim workflow end to end. ${extraNote}
+      `;
+  _pendingJudgeSimulation = { ...state, ...options };
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="background:rgba(59,130,246,0.08);border:1px dashed rgba(59,130,246,0.5);border-radius:12px;padding:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text);">Judge Demo Override</div>
+        <span style="font-size:9px;padding:2px 7px;border-radius:50px;background:var(--blue-d);color:var(--blue);font-weight:700;">SYNTHETIC</span>
+      </div>
+      <div style="font-size:11px;color:var(--text);line-height:1.55;">
+        Real conditions in ${esc(state.city)} are still normal for <strong>${esc(state.triggerType)}</strong>:
+        <span style="color:var(--blue);font-weight:700;">${state.current} ${esc(state.unit)}</span>
+        vs trigger threshold
+        <span style="color:var(--yellow);font-weight:700;">${state.threshold} ${esc(state.unit)}</span>.
+      </div>
+      <div style="font-size:10px;color:var(--muted);line-height:1.55;margin-top:6px;">
+        ${detailText}
+      </div>
+      <button id="btn-sim-demo-override-action" class="btn btn-full" style="margin-top:10px;background:#1d1f27;color:var(--yellow);border:1px dashed var(--yellow);">
+        ${actionLabel}
+      </button>
+    </div>
+  `;
+  const actionBtn = document.getElementById('btn-sim-demo-override-action');
+  if (actionBtn) actionBtn.onclick = runPendingJudgeSimulation;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
 
 async function updateSimComparison() {
   const trigType = document.getElementById('sim-trigger-type').value;
@@ -3079,44 +3290,23 @@ async function updateSimComparison() {
   const panel = document.getElementById('sim-comparison');
   if (!panel) return;
 
+  hideSimDemoOverride();
   panel.style.display = 'block';
   panel.innerHTML = `<p class="text-muted text-sm">Fetching current ${esc(trigType)} reading for ${esc(city)}...</p>`;
 
   try {
     const data = await api(conditionsApiPath(city, currentWorkerPlatform()));
     _lastSimConditions = data;
-    const cfg = SIM_VALUES[trigType] || { sim: 100, unit: '', field: '' };
-    const threshold = SIM_THRESHOLDS[trigType] || 100;
-
-    // Extract current value based on trigger type
-    let current = 0;
-    let sourceLabel = '';
-    const f = cfg.field;
-    if (f === 'rain') {
-      current = data.weather?.rain_24h_est_mm || 0;
-      sourceLabel = data.sources?.weather || 'API';
-    } else if (f === 'temp') {
-      current = data.weather?.temperature_c || 0;
-      sourceLabel = data.sources?.weather || 'API';
-    } else if (f === 'aqi') {
-      current = data.aqi?.value || 0;
-      sourceLabel = data.sources?.aqi || 'API';
-    } else if (f === 'platform') {
-      current = data.platform_status?.status === 'DOWN' ? 20 : 0;
-      sourceLabel = data.sources?.platform || 'API';
-    } else if (f === 'civil') {
-      current = data.civil_disruption?.active ? 6 : 0;
-      sourceLabel = data.sources?.civil || 'API';
+    const state = getSimComparisonState(trigType, city, data);
+    if (!state) {
+      panel.innerHTML = `<p class="text-muted text-sm">Could not build the live comparison. Simulation will still work.</p>`;
+      return;
     }
-
-    const pct = Math.min(100, (current / threshold) * 100);
-    const gap = threshold - current;
-    const isLive = sourceLabel.toLowerCase().includes('live');
 
     panel.innerHTML = `
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
         <span style="font-size:12px;font-weight:700;color:var(--text);">📊 Real vs Simulated</span>
-        ${isLive
+        ${state.isLive
           ? '<span style="font-size:9px;padding:2px 6px;border-radius:50px;background:var(--green-d);color:var(--green);font-weight:700;">● LIVE</span>'
           : '<span style="font-size:9px;padding:2px 6px;border-radius:50px;background:var(--card3);color:var(--muted);font-weight:700;">○ MOCK</span>'
         }
@@ -3125,32 +3315,37 @@ async function updateSimComparison() {
       <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:10px;">
         <div style="text-align:center;">
           <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Current</div>
-          <div style="font-size:20px;font-weight:800;color:var(--blue);">${current}</div>
-          <div style="font-size:10px;color:var(--muted);">${cfg.unit}</div>
+          <div style="font-size:20px;font-weight:800;color:var(--blue);">${state.current}</div>
+          <div style="font-size:10px;color:var(--muted);">${state.unit}</div>
         </div>
         <div style="text-align:center;">
           <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Threshold</div>
-          <div style="font-size:20px;font-weight:800;color:var(--yellow);">${threshold}</div>
-          <div style="font-size:10px;color:var(--muted);">${cfg.unit}</div>
+          <div style="font-size:20px;font-weight:800;color:var(--yellow);">${state.threshold}</div>
+          <div style="font-size:10px;color:var(--muted);">${state.unit}</div>
         </div>
         <div style="text-align:center;">
           <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Simulated</div>
-          <div style="font-size:20px;font-weight:800;color:var(--red);">${cfg.sim}</div>
-          <div style="font-size:10px;color:var(--muted);">${cfg.unit}</div>
+          <div style="font-size:20px;font-weight:800;color:var(--red);">${state.simulated}</div>
+          <div style="font-size:10px;color:var(--muted);">${state.unit}</div>
         </div>
       </div>
 
       <div style="height:4px;background:var(--card3);border-radius:4px;overflow:hidden;margin-bottom:4px;">
-        <div style="height:100%;width:${pct}%;background:${pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--yellow)' : 'var(--blue)'};border-radius:4px;transition:width .3s;"></div>
+        <div style="height:100%;width:${state.pct}%;background:${state.pct > 80 ? 'var(--red)' : state.pct > 50 ? 'var(--yellow)' : 'var(--blue)'};border-radius:4px;transition:width .3s;"></div>
       </div>
       <div style="font-size:10px;color:var(--muted);">
-        ${pct.toFixed(0)}% of threshold · ${gap > 0 ? `${gap.toFixed(1)} ${cfg.unit} below trigger` : '<span style="color:var(--red);font-weight:700;">THRESHOLD EXCEEDED</span>'}
+        ${state.pct.toFixed(0)}% of threshold · ${state.gap > 0 ? `${state.gap.toFixed(1)} ${state.unit} below trigger` : '<span style="color:var(--red);font-weight:700;">THRESHOLD EXCEEDED</span>'}
       </div>
       <div style="font-size:9px;color:var(--muted);margin-top:6px;line-height:1.4;font-style:italic;">
-        Simulation will override the current ${current} ${cfg.unit} → ${cfg.sim} ${cfg.unit} to demonstrate the zero-touch claim pipeline.
+        ${state.isBelowThreshold
+          ? `Right now the live conditions would not fire a payout on their own. Tap simulate once to see the judge-only override button, then force the signal from ${state.current} ${state.unit} to ${state.simulated} ${state.unit}.`
+          : `Live conditions are already elevated. You can still use simulation to show the full zero-touch pipeline with a synthetic threshold-crossing event.`
+        }
       </div>
     `;
   } catch(e) {
+    _lastSimConditions = null;
+    hideSimDemoOverride();
     panel.innerHTML = `<p class="text-muted text-sm">Could not fetch current reading. Simulation will still work.</p>`;
   }
 }
@@ -3158,40 +3353,53 @@ async function updateSimComparison() {
 let _simulatedBypassConfirmed = false;
 let _simulatedLocationBypass = false;
 
-async function simulateTrigger() {
+async function simulateTrigger(forceDemoOverride = false) {
   const trigType = document.getElementById('sim-trigger-type').value;
   const city     = document.getElementById('sim-city').value;
+  let comparison = getSimComparisonState(trigType, city);
+  if (!comparison) {
+    comparison = await ensureSimComparisonLoaded(trigType, city);
+  }
+
+  if (!forceDemoOverride && comparison && comparison.isBelowThreshold) {
+    showSimDemoOverride(comparison);
+    toast(
+      `Live ${trigType.toLowerCase()} is still below threshold in ${city}. Use the judge override button below to force the synthetic claim journey.`,
+      'info'
+    );
+    return;
+  }
+
+  hideSimDemoOverride();
   const btn = document.getElementById('btn-simulate-trigger');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Simulating threshold crossing...';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Simulating threshold crossing...';
   const requestStartedAt = Date.now();
   try {
     const res = await api('/triggers/simulate', {
       method: 'POST',
-      body: JSON.stringify({ 
-        trigger_type: trigType, 
-        city, 
+      body: JSON.stringify({
+        trigger_type: trigType,
+        city,
         bypass_gate: _simulatedBypassConfirmed,
         bypass_location: _simulatedLocationBypass
       })
     });
-    
-    _simulatedBypassConfirmed = false; // Reset after successful bypass
 
-    // Show what-if comparison from the response
+    _simulatedBypassConfirmed = false;
+
     if (res.current_reading) {
-      const cfg = SIM_VALUES[trigType] || {};
       toast(`🚨 ${trigType} simulated in ${city}! Current: ${res.current_reading.value} → Simulated: ${res.measured_value} ${res.unit}`, 'info');
     } else {
       toast(`🚨 ${trigType} simulated in ${city}! Processing claims...`, 'info');
     }
     loadTriggerEvents();
 
-    // Poll for the new claim with retry — background task may take 1–5s
     (async () => {
       let payoutAmt = 0;
       let claimNum = 'CLM-AUTO-' + Math.random().toString(36).substr(2,6).toUpperCase();
       let matchedClaim = null;
-      const delays = [1500, 2000, 3000]; // retry at 1.5s, 3.5s, 6.5s
+      const delays = [1500, 2000, 3000];
       for (const delay of delays) {
         await new Promise(r => setTimeout(r, delay));
         if (!document.getElementById('page-triggers').classList.contains('active')) return;
@@ -3215,36 +3423,44 @@ async function simulateTrigger() {
       } else {
         const reason = res.requester_eligibility_reason
           || `No claim was created for your account because your current location or platform does not match ${city}.`;
+        if (res.requester_eligible === false && !_simulatedLocationBypass) {
+          const locationBlocked = /location|gps|zone|away/i.test(reason);
+          if (locationBlocked) {
+            const locationState = comparison || {
+              triggerType: trigType,
+              city,
+              current: res.current_reading?.value ?? 0,
+              threshold: SIM_THRESHOLDS[trigType] || 0,
+              simulated: SIM_VALUES[trigType]?.sim ?? 0,
+              unit: res.unit || SIM_VALUES[trigType]?.unit || '',
+            };
+            showSimDemoOverride(locationState, reason, {
+              enableLocationBypass: true,
+              enableCoolingOffBypass: true,
+              actionLabel: '📍 Waive GPS Check And Continue Judge Demo',
+              detailText: `
+        Your demo run was blocked by the worker-location authenticity gate.
+        <span style="color:var(--text);font-weight:700;">${esc(reason)}</span>
+        For judges, this button waives the GPS proximity check and the cooling-off gate once, so the full synthetic claim workflow can continue.
+      `,
+            });
+          }
+        }
         toast(reason, res.requester_eligible === false ? 'info' : 'error');
       }
     })();
 
   } catch(e) {
-    if (e.message && e.message.includes('|bypass_required')) {
+    if (e.message && e.message.includes('|bypass_required') && comparison) {
       const msg = e.message.split('|')[0];
+      showSimDemoOverride(comparison, msg);
       toast(`🚨 ${msg}`, 'error');
-      
-      let overrideBtn = document.getElementById('btn-demo-override');
-      if (!overrideBtn) {
-        overrideBtn = document.createElement('button');
-        overrideBtn.id = 'btn-demo-override';
-        overrideBtn.className = 'btn btn-full';
-        overrideBtn.style = 'background:#1d1f27;color:var(--yellow);margin-top:8px;border:1px dashed var(--yellow);';
-        overrideBtn.innerHTML = '⚠️ DEMO PRIVILEGE: Force Override & Simulate';
-        overrideBtn.onclick = function() {
-            _simulatedBypassConfirmed = true;
-            this.style.display = 'none';
-            simulateTrigger();
-        };
-        const simBtn = document.getElementById('btn-simulate-trigger');
-        simBtn.parentNode.insertBefore(overrideBtn, simBtn.nextSibling);
-      }
-      overrideBtn.style.display = 'block';
     } else {
       toast(e.message, 'error');
     }
   } finally {
-    btn.disabled = false; btn.innerHTML = '⚡ Simulate Threshold Crossing';
+    btn.disabled = false;
+    btn.innerHTML = '⚡ Simulate Threshold Crossing';
   }
 }
 
