@@ -333,6 +333,7 @@ body {
 }
 .hero-badge-active { background: rgba(0,200,83,0.2); color: var(--green); }
 .hero-badge-none   { background: rgba(239,68,68,0.2); color: var(--red); }
+.hero-badge-waiting { background: rgba(245,158,11,0.2); color: #f59e0b; }
 .hero-premium-text { font-size: 13px; color: rgba(255,255,255,0.5); }
 .hero-cta {
   width: 100%; padding: 15px; border-radius: var(--r-pill);
@@ -2096,8 +2097,17 @@ async function loadDashboard() {
           coolingBanner.classList.add('hidden');
           if (_coolingTimer) clearInterval(_coolingTimer);
         }
-      }
 
+        // When cooling-off is active, override the badge and CTA to reflect waiting-period state
+        if (policy.cooling_off_active) {
+          badge2.className = 'hero-badge hero-badge-waiting';
+          badge2.textContent = '🕐 Active — Waiting Period';
+          heroCta.textContent = 'Claims Start Soon';
+          heroCta.onclick = () => navTo('policy');
+        }
+      }
+    } else {
+      // ── NO POLICY: show acquisition state ──
       badge2.className = 'hero-badge hero-badge-none';
       badge2.textContent = '⚠ Unprotected';
       document.getElementById('stat-premium-hero').textContent = '';
@@ -2105,7 +2115,7 @@ async function loadDashboard() {
       heroCta.onclick = () => navTo('policy');
       heroDaysRow.classList.add('hidden');
       document.getElementById('hero-sub').classList.remove('hidden');
-      // Warning banner if zone risk is high
+      // Warning banner if zone risk is high (only when truly unprotected)
       const zr = currentUser?.zone_risk_score || 0;
       if (zr > 0.5) {
         document.getElementById('dash-warning-body').textContent =
@@ -2114,6 +2124,9 @@ async function loadDashboard() {
       } else {
         warningBanner.classList.add('hidden');
       }
+      // Hide cooling banner when no policy
+      const coolingBanner = document.getElementById('dash-cooling-off-banner');
+      if (coolingBanner) coolingBanner.classList.add('hidden');
     }
 
     // ── Zone risk ──
@@ -2127,9 +2140,15 @@ async function loadDashboard() {
     // ── Legacy compat ──
     const policyEl = document.getElementById('dash-policy-detail');
     if (policy) {
-      document.getElementById('dash-policy-badge').innerHTML =
-        `<span class="risk-chip risk-low">✅ ACTIVE</span>`;
-      policyEl.innerHTML = `<b>${esc(policy.tier)}</b> · #${esc(policy.policy_number)}`;
+      if (policy.cooling_off_active) {
+        document.getElementById('dash-policy-badge').innerHTML =
+          `<span class="risk-chip" style="background:rgba(245,158,11,0.15);color:#f59e0b;">🕐 ACTIVE — WAITING</span>`;
+        policyEl.innerHTML = `<b>${esc(policy.tier)}</b> · Claims start after waiting period`;
+      } else {
+        document.getElementById('dash-policy-badge').innerHTML =
+          `<span class="risk-chip risk-low">✅ ACTIVE</span>`;
+        policyEl.innerHTML = `<b>${esc(policy.tier)}</b> · #${esc(policy.policy_number)}`;
+      }
     } else {
       document.getElementById('dash-policy-badge').innerHTML =
         `<span class="risk-chip risk-high">❌ UNPROTECTED</span>`;
