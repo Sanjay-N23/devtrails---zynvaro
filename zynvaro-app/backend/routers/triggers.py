@@ -694,17 +694,18 @@ def _auto_generate_claims(
                 continue  # Tier doesn't cover this trigger
 
             # GAP 3 FIX: Skip if worker already has a claim for same trigger type in last 24h
-            existing = (
-                db.query(Claim).join(TriggerEvent)
-                .filter(
-                    Claim.worker_id == worker.id,
-                    TriggerEvent.trigger_type == trigger_type,
-                    TriggerEvent.city == city,
-                    Claim.created_at >= (datetime.utcnow() - timedelta(hours=24))
-                ).first()
-            )
-            if existing:
-                continue  # Prevent same-event duplicate claim
+            if not bypass_gate:
+                existing = (
+                    db.query(Claim).join(TriggerEvent)
+                    .filter(
+                        Claim.worker_id == worker.id,
+                        TriggerEvent.trigger_type == trigger_type,
+                        TriggerEvent.city == city,
+                        Claim.created_at >= (datetime.utcnow() - timedelta(hours=24))
+                    ).first()
+                )
+                if existing:
+                    continue  # Prevent same-event duplicate claim
 
             # H7 FIX: Enforce weekly aggregate payout cap from the policy
             week_ago = datetime.utcnow() - timedelta(days=7)
@@ -716,10 +717,11 @@ def _auto_generate_claims(
                 Claim.created_at >= week_ago,
             ).scalar() or 0
 
-            if weekly_paid + payout > policy.max_weekly_payout:
-                payout = max(0, policy.max_weekly_payout - weekly_paid)
-                if payout <= 0:
-                    continue  # Weekly cap reached, skip this claim
+            if not bypass_gate:
+                if weekly_paid + payout > policy.max_weekly_payout:
+                    payout = max(0, policy.max_weekly_payout - weekly_paid)
+                    if payout <= 0:
+                        continue  # Weekly cap reached, skip this claim
 
             # GAP 1 FIX: Count actual same-week claims for accurate fraud scoring
             same_week_count = db.query(Claim).filter(
