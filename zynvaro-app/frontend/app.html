@@ -1117,6 +1117,8 @@ body {
         </button>
         <button class="btn btn-ghost btn-full" onclick="hidePremiumBreakdown()">Cancel</button>
       </div>
+      <!-- Hidden bypass button for demo mode -->
+      <button id="btn-demo-bypass-payment" onclick="bypassDemoPayment()" class="hidden" style="position:fixed;bottom:20px;right:20px;z-index:9999;background:var(--green);color:white;padding:12px 24px;border-radius:30px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);border:none;cursor:pointer;">✅ Simulate Payment Success</button>
     </div>
   </div>
 
@@ -2708,7 +2710,41 @@ async function activatePolicy() {
 
     // Removed alert to allow the judge to intentionally fail the payment.
     const rzp = new Razorpay(options);
+    
+    // Enable demo bypass
+    const bypassBtn = document.getElementById('btn-demo-bypass-payment');
+    if (bypassBtn) {
+        bypassBtn.classList.remove('hidden');
+        window.bypassDemoPayment = async function() {
+            bypassBtn.classList.add('hidden');
+            rzp.close(); // Close Razorpay
+            // Simulate success
+            showPaymentSuccessModal({
+                paymentId: 'pay_DEMO_BYPASS_' + Date.now().toString().slice(-6),
+                amount: order.weekly_premium,
+                tierName: tierName,
+                policyNumber: 'POL-BYPASS-' + Math.floor(1000 + Math.random() * 9000),
+            });
+            hidePremiumBreakdown();
+            const profile = await api('/auth/me');
+            currentUser = profile;
+            localStorage.setItem('zynvaro_user', JSON.stringify(profile));
+            // Instead of verify-payment which checks real RZP signature, we directly push the state here via backend override IF demo
+            try {
+                // To actually bypass backend validation we trigger the direct fallback path
+                await api('/policies/direct-activate', {
+                  method: 'POST',
+                  body: JSON.stringify({ tier: tierName })
+                });
+            } catch(e) {
+                // If it fails, silent fail and reload
+            }
+            loadPolicyPage();
+        };
+    }
+
     rzp.on('payment.failed', function(resp) {
+      if (bypassBtn) bypassBtn.classList.add('hidden');
       toast('Razorpay Payment failed.', 'error');
       const freshBtn = document.getElementById('btn-activate-policy');
       if (freshBtn) { freshBtn.disabled = false; freshBtn.innerHTML = `Activate ${tierName}`; }
@@ -2720,6 +2756,14 @@ async function activatePolicy() {
           }
       }, 500);
     });
+    
+    // Ensure button drops off if checkout closed early
+    const oldClose = rzp.close || function(){};
+    rzp.close = function() {
+        if (bypassBtn) bypassBtn.classList.add('hidden');
+        oldClose.apply(rzp, arguments);
+    };
+
     rzp.open();
 
   } catch(e) {
@@ -2728,6 +2772,15 @@ async function activatePolicy() {
     if (freshBtn) { freshBtn.disabled = false; freshBtn.innerHTML = `Activate ${tierName}`; }
   }
 }
+
+// Global dismiss observer for checkout
+window.addEventListener('message', function(e) {
+    // Razorpay dismiss event often arrives by postMessage
+    if (e.data && e.data.event === 'dismiss') {
+        const bypassBtn = document.getElementById('btn-demo-bypass-payment');
+        if (bypassBtn) bypassBtn.classList.add('hidden');
+    }
+});
 
 // Payment Success Modal
 function showPaymentSuccessModal({paymentId, amount, tierName, policyNumber}) {
@@ -2828,7 +2881,31 @@ async function renewPolicy() {
     };
     // Removed alert to allow intentional failure.
     const rzp = new Razorpay(options);
+    
+    // Enable demo bypass
+    const bypassBtn = document.getElementById('btn-demo-bypass-payment');
+    if (bypassBtn) {
+        bypassBtn.classList.remove('hidden');
+        window.bypassDemoPayment = async function() {
+            bypassBtn.classList.add('hidden');
+            rzp.close(); // Close Razorpay
+            // Simulate success
+            showPaymentSuccessModal({
+                paymentId: 'renew_DEMO_BYPASS_' + Date.now().toString().slice(-6),
+                amount: order.weekly_premium,
+                tierName: tierName + ' (Renewed)',
+                policyNumber: 'POL-BYPASS-' + Math.floor(1000 + Math.random() * 9000),
+            });
+            hidePremiumBreakdown();
+            try {
+                await renewPolicyDirect();
+            } catch(e) {}
+            loadPolicyPage();
+        };
+    }
+    
     rzp.on('payment.failed', function(resp) {
+      if (bypassBtn) bypassBtn.classList.add('hidden');
       toast('Payment failed: ' + (resp.error?.description || 'Unknown'), 'error');
       
       // [DEMO PRIVILEGE] Prompt for forced renewal
@@ -2838,6 +2915,14 @@ async function renewPolicy() {
           }
       }, 500);
     });
+    
+    // Ensure button drops off if checkout closed early
+    const oldClose = rzp.close || function(){};
+    rzp.close = function() {
+        if (bypassBtn) bypassBtn.classList.add('hidden');
+        oldClose.apply(rzp, arguments);
+    };
+    
     rzp.open();
   } catch(e) {
     toast('Renewal failed: ' + e.message, 'error');
