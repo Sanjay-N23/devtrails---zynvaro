@@ -242,6 +242,7 @@ class PayoutTransactionStatus(str, enum.Enum):
     FAILED      = "failed"       # Gateway returned failure
     REVERSED    = "reversed"     # Payment reversed / refunded
     RETRYING    = "retrying"     # Scheduled for retry after failure
+    DEMO_SETTLED = "demo_settled" # Bypass mode settlement
 
 class TransactionType(str, enum.Enum):
     PREMIUM_PAYMENT = "premium_payment"   # Worker pays premium to activate/renew policy
@@ -283,6 +284,12 @@ class PayoutTransaction(Base):
     # Gateway metadata
     gateway_name    = Column(String(30), default="razorpay")  # razorpay / phonepe / cashfree / mock
     gateway_payload = Column(Text, nullable=True)             # Raw JSON response stored for audit
+
+    # Demo bypass audit fields
+    is_demo_bypass = Column(Boolean, default=False)
+    bypass_source_screen = Column(String(50), nullable=True)
+    original_provider_error = Column(Text, nullable=True)
+    environment_at_bypass = Column(String(20), nullable=True)
 
     # Timestamps
     initiated_at    = Column(DateTime, default=datetime.utcnow, nullable=False)

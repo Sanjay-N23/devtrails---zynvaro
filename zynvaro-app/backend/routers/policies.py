@@ -50,6 +50,13 @@ class VerifyPaymentRequest(BaseModel):
     razorpay_signature: str
     tier: str
 
+class DemoBypassRequest(BaseModel):
+    tier: str
+    order_id: str
+    source_screen: str
+    original_provider_error: str
+    is_renewal: bool = False
+
 class PolicyResponse(BaseModel):
     id: int
     policy_number: str
@@ -296,6 +303,30 @@ def renew_policy(
 
 
 # ─── Razorpay Checkout Flow (Phase 3: Premium Payment Gateway) ────
+
+@router.post("/demo-bypass", status_code=201)
+def demo_payment_bypass(
+    req: DemoBypassRequest,
+    worker: Worker = Depends(get_current_worker),
+    db: Session = Depends(get_db),
+):
+    """
+    Antigravity Demo-Only Endpoint:
+    Simulates successful checkout when the payment gateway fails during in-app demo sessions.
+    Writes audit records safely avoiding production corruption.
+    """
+    from services.demo_payment_service import complete_demo_payment_bypass
+    
+    result = complete_demo_payment_bypass(
+        db=db,
+        worker=worker,
+        tier=req.tier,
+        order_id=req.order_id,
+        source_screen=req.source_screen,
+        original_provider_error=req.original_provider_error,
+        is_renewal=req.is_renewal
+    )
+    return result
 
 @router.post("/create-order", response_model=CreateOrderResponse)
 def create_order(

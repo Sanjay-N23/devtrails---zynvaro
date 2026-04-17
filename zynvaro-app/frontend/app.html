@@ -2731,11 +2731,20 @@ async function activatePolicy() {
             localStorage.setItem('zynvaro_user', JSON.stringify(profile));
             // Instead of verify-payment which checks real RZP signature, we directly push the state here via backend override IF demo
             try {
-                // To actually bypass backend validation we trigger the direct fallback path
-                await api('/policies/direct-activate', {
+                // Trigger the backend demo bypass flow to create policy and DEMO_SETTLED transaction
+                const bypassRes = await api('/policies/demo-bypass', {
                   method: 'POST',
-                  body: JSON.stringify({ tier: tierName })
+                  body: JSON.stringify({ 
+                      tier: tierName,
+                      order_id: order.order_id,
+                      source_screen: 'demo_floating_button',
+                      original_provider_error: 'Bypassed by demo user',
+                      is_renewal: false
+                  })
                 });
+                
+                // Use the backend-generated policy number in the alert
+                document.getElementById('pay-policy').textContent = bypassRes.policy_number || 'POL-BYPASS-MOCK';
             } catch(e) {
                 // If it fails, silent fail and reload
             }
@@ -2898,7 +2907,17 @@ async function renewPolicy() {
             });
             hidePremiumBreakdown();
             try {
-                await renewPolicyDirect();
+                // Trigger the backend demo bypass flow to renew policy and log DEMO_SETTLED transaction
+                const bypassRes = await api('/policies/demo-bypass', {
+                  method: 'POST',
+                  body: JSON.stringify({ 
+                      tier: tierName,
+                      order_id: order.order_id,
+                      source_screen: 'demo_floating_button',
+                      original_provider_error: 'Bypassed by demo user',
+                      is_renewal: true
+                  })
+                });
             } catch(e) {}
             loadPolicyPage();
         };
